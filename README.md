@@ -4,23 +4,23 @@ An intelligent conversational AI system designed specifically for National Unive
 
 ##  Features
 
-### ** Dual-Model Architecture**
+### **Dual-Model Architecture**
 - **General Knowledge Model**: Handles broad academic topics (machine learning, quantum physics, etc.)
 - **University-Specific Model**: Processes handbook-based queries with RAG technology
 - **User-Selectable Models**: Choose between Gemma 3 Latest and Llama 3.2 Latest
 
-### ** Comprehensive Knowledge Base**
+### **Comprehensive Knowledge Base**
 - **Student Handbook Integration**: Complete 34-section university handbook with structured CSV data
 - **6 Knowledge Categories**: Academic, Admissions, Financial, Policies, Student Life, and General
 - **Real-Time Information Retrieval**: Tuition fees, admission requirements, academic policies, and more
 
-### ** Advanced Conversation Features**
+### **Advanced Conversation Features**
 - **10-Message Memory**: Remembers conversation history for intelligent follow-up responses
 - **Context-Aware Responses**: Understands pronouns and references to previous topics
 - **Streaming Typewriter Effect**: Real-time response display like ChatGPT
 - **Bulldog Personality**: Friendly, encouraging responses with natural "Woof!" expressions
 
-### ** Intelligent Query Routing**
+### **Intelligent Query Routing**
 - **Smart Classification**: Automatically determines if questions are university-specific or general knowledge
 - **Confidence Scoring**: Provides response confidence metrics
 - **Source Attribution**: Shows relevant handbook sections for university queries
@@ -64,27 +64,27 @@ An intelligent conversational AI system designed specifically for National Unive
 
 ## University Knowledge Coverage
 
-### **📋 Academic Information**
+### **Academic Information**
 - Grading system (4.0 scale) with detailed breakdowns
 - Academic load limits and semester requirements  
 - Course substitution and petition procedures
 - Graduation requirements and academic honors
 - Cross-enrollment policies
 
-### ** Admissions & Registration**
+### **Admissions & Registration**
 - Required documents for freshman and transfer students
 - GPA requirements (2.5 regular, 2.0 conditional, 1.75+ scholarship)
 - Registration periods and deadlines
 - Program shifting procedures
 
-### ** Financial Information**
+### **Financial Information**
 - **Undergraduate Tuition**: ₱2,800 per unit
 - **Graduate Tuition**: ₱3,200 (Masters), ₱3,500 (Doctoral)
 - Flexible payment options (full, 2-installment, 3-installment)
 - Multiple payment channels (online banking, GCash, PayMaya)
 - Scholarship opportunities and financial aid
 
-### ** Student Life & Policies**
+### **Student Life & Policies**
 - Uniform requirements and dress code
 - Attendance policies (80% minimum requirement)
 - Student conduct and academic integrity rules
