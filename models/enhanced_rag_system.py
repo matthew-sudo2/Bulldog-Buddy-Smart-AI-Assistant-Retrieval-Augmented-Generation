@@ -350,7 +350,7 @@ Bulldog Buddy's Answer:""",
             if self.web_session_active and not urls:
                 # Check if the question might be related to active web content
                 web_relevance = self._is_web_related_query(clean_question)
-                if web_relevance > 0.5:  # If likely related to web content
+                if web_relevance > 0.3:  # Lowered threshold for better follow-up detection
                     return self.ask_question_with_web_content(question)
             
             # Check if this is a financial/tuition query and handle specially
@@ -748,7 +748,7 @@ Instructions:
 - Be enthusiastic and supportive with a bulldog personality
 - Use "Woof!" occasionally but naturally
 - Provide accurate and concise answers
-- If the context doesn’t provide relevant info, be honest and guide the student where possible
+- If the context doesn’t provide relevant info, be honest about it
 - Use emojis appropriately (🐶, 🐾, 📚, 🏫)
 - Keep responses helpful and student-focused
 """
@@ -1097,53 +1097,80 @@ Bulldog Buddy's Response:"""
     
     def _is_web_related_query(self, question: str) -> float:
         """
-        Determine if a question is likely related to active web content
+        Enhanced method to determine if a question is likely related to active web content
         Returns confidence score between 0-1
         """
         if not self.web_session_active:
             return 0.0
         
-        question_lower = question.lower()
+        question_lower = question.lower().strip()
+        
+        # Handle very short responses that are likely follow-ups
+        short_responses = ["yes", "no", "ok", "okay", "yeah", "sure", "thanks", "more", "continue"]
+        if question_lower in short_responses:
+            return 0.9  # Very high confidence for short follow-up responses
+        
+        # Handle explicit continuation phrases
+        continuation_phrases = [
+            "tell me more", "more about", "continue", "go on", "what else",
+            "more details", "elaborate", "explain more", "more info", "keep going",
+            "what about", "anything else", "and", "also", "additionally"
+        ]
+        if any(phrase in question_lower for phrase in continuation_phrases):
+            return 0.95
         
         # Direct reference keywords (strong indicators)
         strong_references = [
             "this", "that", "it", "the website", "the site", "the page", "the article",
             "mentioned", "said", "according to", "based on", "what does it say",
-            "tell me more", "more about", "explain more", "what about",
-            "summarize", "summary", "main points", "key points"
+            "summarize", "summary", "main points", "key points", "from this",
+            "what does this", "how does this", "why does this"
         ]
         
-        # Contextual keywords (weaker but relevant)
+        # Contextual keywords (medium indicators)
         contextual_keywords = [
             "above", "previous", "earlier", "before", "also", "additionally",
             "regarding", "concerning", "about this", "from what", "how does",
             "what are", "what is", "why does", "where does", "when does"
         ]
         
+        # Question words that likely refer to current context
+        context_questions = [
+            "what", "how", "why", "where", "when", "who", "which"
+        ]
+        
         # Check for strong references
         strong_score = 0
         for keyword in strong_references:
             if keyword in question_lower:
-                strong_score += 0.4
+                strong_score += 0.6  # Increased from 0.4
         
         # Check for contextual keywords  
         contextual_score = 0
         for keyword in contextual_keywords:
             if keyword in question_lower:
-                contextual_score += 0.2
+                contextual_score += 0.4  # Increased from 0.2
                 
+        # Check for context questions when web session is active
+        question_score = 0
+        if any(q_word in question_lower for q_word in context_questions):
+            question_score += 0.3  # New: boost for question words during web session
+            
         # Check if question contains terms from active web content titles/content
         content_score = 0
         for content_info in self.active_web_content.values():
             title = content_info.get('title', '').lower()
-            # Check if words from title appear in question
             title_words = [word for word in title.split() if len(word) > 3]
             for word in title_words:
                 if word in question_lower:
-                    content_score += 0.15
+                    content_score += 0.3  # Increased from 0.15
         
         # Combine scores
-        total_score = min(strong_score + contextual_score + content_score, 1.0)
+        total_score = min(strong_score + contextual_score + question_score + content_score, 1.0)
+        
+        # Special handling for very short questions during active web session
+        if len(question_lower.split()) <= 3 and self.web_session_active:
+            total_score = max(total_score, 0.6)  # Minimum confidence for short questions
         
         # Boost score if this is clearly a follow-up (contains "this", "it", "that")
         if any(ref in question_lower for ref in ["this", "it", "that"]):

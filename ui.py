@@ -92,10 +92,36 @@ def initialize_session_state():
             st.session_state.rag_error = str(e)
 
 def get_rag_system_with_model(model_name: str = "gemma3:latest"):
-    """Get RAG system with specific model (not cached to allow model switching)"""
+    """Get RAG system with specific model, preserving web session state"""
     try:
         handbook_path = "./data/student-handbook-structured.csv"
+        
+        # Check if we have a cached system with the same model
+        if 'rag_system_instance' in st.session_state:
+            cached_system = st.session_state.rag_system_instance
+            if cached_system and hasattr(cached_system, 'model_name') and cached_system.model_name == model_name:
+                return cached_system
+        
+        # Create new system but preserve web session state from old one
+        old_web_state = None
+        old_web_content = None
+        if 'rag_system_instance' in st.session_state:
+            old_system = st.session_state.rag_system_instance
+            if old_system:
+                old_web_state = getattr(old_system, 'web_session_active', False)
+                old_web_content = getattr(old_system, 'active_web_content', {})
+        
+        # Create new RAG system
         rag_system = EnhancedRAGSystem(handbook_path, model_name=model_name)
+        
+        # Restore web session state if it existed
+        if old_web_state and old_web_content:
+            rag_system.web_session_active = old_web_state
+            rag_system.active_web_content = old_web_content
+        
+        # Cache the new system
+        st.session_state.rag_system_instance = rag_system
+        
         return rag_system
     except Exception as e:
         st.error(f"Failed to initialize RAG system: {e}")
