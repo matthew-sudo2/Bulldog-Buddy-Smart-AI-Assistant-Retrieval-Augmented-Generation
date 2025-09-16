@@ -5,7 +5,7 @@ An intelligent conversational AI system designed specifically for National Unive
 ##  Features
 
 ### **Dual-Model Architecture**
-- **General Knowledge Model**: Handles broad academic topics (machine learning, quantum physics, etc.)
+- **General Knowledge Model**: Handles broad academic topics (math, science, technology, etc.)
 - **University-Specific Model**: Processes handbook-based queries with RAG technology
 - **User-Selectable Models**: Choose between Gemma 3 Latest and Llama 3.2 Latest
 
