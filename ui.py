@@ -73,6 +73,10 @@ def initialize_session_state():
         }
         st.session_state.messages.append(welcome_msg)
     
+    # Initialize university mode
+    if "university_mode" not in st.session_state:
+        st.session_state.university_mode = True  # Default to university mode
+    
     # Initialize RAG system
     if "rag_system" not in st.session_state:
         try:
@@ -97,27 +101,61 @@ def get_rag_system_with_model(model_name: str = "gemma3:latest"):
         st.error(f"Failed to initialize RAG system: {e}")
         return None
 
-@st.cache_resource
 def get_rag_system():
     """Get or initialize RAG system (cached)"""
     try:
         handbook_path = "./data/student-handbook-structured.csv"
-        rag_system = EnhancedRAGSystem(handbook_path)
-        return rag_system
+        
+        # Check if we have a cached system with missing methods
+        if 'rag_system_instance' in st.session_state:
+            cached_system = st.session_state.rag_system_instance
+            if cached_system and not hasattr(cached_system, 'set_university_mode'):
+                # Clear the old cached system
+                del st.session_state.rag_system_instance
+                st.cache_resource.clear()
+        
+        # Get or create RAG system
+        if 'rag_system_instance' not in st.session_state:
+            rag_system = EnhancedRAGSystem(handbook_path)
+            
+            # Initialize the database if not already done
+            if not rag_system.is_initialized:
+                success = rag_system.initialize_database()
+                if not success:
+                    st.error("Failed to initialize database")
+                    return None
+            
+            # Verify that the university mode methods exist
+            if not hasattr(rag_system, 'set_university_mode'):
+                st.error("⚠️ RAG system missing university mode methods. Please refresh the page.")
+                return None
+            
+            st.session_state.rag_system_instance = rag_system
+        
+        return st.session_state.rag_system_instance
     except Exception as e:
         st.error(f"Failed to initialize RAG system: {e}")
         return None
 
 def get_bot_response(user_message):
     """
-    Get response from Enhanced RAG system with Bulldog Buddy personality
+    Enhanced bot response with web content support
     """
     try:
         # Get the selected model from session state
         selected_model = st.session_state.get("selected_model", "gemma3:latest")
         
+        # Check if the message contains URLs
+        if any(keyword in user_message.lower() for keyword in ['http', 'www.', '.com', '.org', '.net', '.edu']):
+            st.info("🌐 I detected a website link! Let me analyze that content for you...")
+        
         # Get RAG system with selected model (create fresh instance to use new model)
         rag_system = get_rag_system_with_model(selected_model)
+        
+        # Set university mode based on session state
+        if rag_system:
+            university_mode = st.session_state.get("university_mode", True)
+            rag_system.set_university_mode(university_mode)
         
         # Try to get relevant context using enhanced RAG
         if rag_system:
@@ -131,25 +169,52 @@ def get_bot_response(user_message):
                         else:
                             st.warning("⚠️ Knowledge base setup had issues, but I can still help!")
                 
-                # Use the enhanced RAG system's ask_question method
+                # Use the enhanced RAG system's ask_question method (now supports web content)
                 response_data = rag_system.ask_question(user_message)
+                
+                # Handle different response types
+                response_type = response_data.get('type', 'general')
+                
+                if response_type == 'web_analysis':
+                    # Special handling for web content analysis
+                    st.success(f"🌐 Analyzed {response_data.get('documents_found', 0)} sections from {len(response_data.get('urls_processed', []))} website(s)")
+                    
+                    # Show processed URLs
+                    with st.expander("🔗 Analyzed Websites", expanded=False):
+                        for url in response_data.get('urls_processed', []):
+                            st.write(f"• {url}")
                 
                 # Get the complete response directly from enhanced RAG
                 complete_response = response_data['answer']
                 confidence = response_data['confidence']
-                source_docs = response_data['source_documents']
+                sources = response_data.get('sources', response_data.get('source_documents', []))
                 
                 # Display confidence if available
                 if confidence > 0:
                     st.sidebar.metric("Response Confidence", f"{confidence:.1%}")
                 
-                # Display source documents
-                if source_docs:
-                    with st.sidebar.expander(f"📚 Sources ({len(source_docs)})", expanded=False):
-                        for i, source in enumerate(source_docs):
-                            st.write(f"**{i+1}. {source['title']}**")
-                            st.write(f"Category: {source['category']}")
-                            st.write(source['content'][:150] + "...")
+                # Display mode indicator
+                response_mode = response_data.get('mode', 'university' if st.session_state.get("university_mode", True) else 'general')
+                if response_mode == 'university':
+                    st.sidebar.success("🏫 University Mode: Used Student Handbook")
+                else:
+                    st.sidebar.info("🌐 General Mode: Used AI Knowledge")
+                
+                # Display sources (adapted for web content)
+                if sources:
+                    with st.sidebar.expander(f"📚 Sources ({len(sources)})", expanded=False):
+                        for i, source in enumerate(sources):
+                            if 'url' in source:  # Web source
+                                st.write(f"**{i+1}. {source.get('title', 'Web Content')}**")
+                                st.write(f"🌐 URL: {source['url']}")
+                                if 'relevance_score' in source:
+                                    st.write(f"📊 Relevance: {source['relevance_score']:.1%}")
+                            else:  # Handbook source
+                                st.write(f"**{i+1}. {source.get('title', 'Handbook Section')}**")
+                                st.write(f"📚 Category: {source.get('category', 'General')}")
+                            
+                            content_preview = source.get('content', '')[:150]
+                            st.write(f"{content_preview}...")
                             st.divider()
                 
                 # Stream the response with typewriter effect
@@ -273,6 +338,56 @@ def main():
         
         st.divider()
         
+        # University Mode Toggle section
+        st.markdown("### 🎓 Response Mode")
+        
+        # Initialize university mode in session state if not exists
+        if "university_mode" not in st.session_state:
+            st.session_state.university_mode = True
+        
+        # Toggle button for university mode
+        current_mode = st.session_state.university_mode
+        mode_label = "🏫 University Mode" if current_mode else "🌐 General Mode"
+        mode_description = "Using Student Handbook" if current_mode else "Using AI Knowledge"
+        
+        # Create two columns for the mode display
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown(f"**{mode_label}**")
+            st.caption(mode_description)
+        
+        with col2:
+            if st.button("🔄", help="Switch mode", key="toggle_mode", use_container_width=True):
+                try:
+                    st.session_state.university_mode = not st.session_state.university_mode
+                    # Update the RAG system mode
+                    rag_system = get_rag_system()
+                    if rag_system:
+                        # Check if the method exists
+                        if hasattr(rag_system, 'set_university_mode'):
+                            rag_system.set_university_mode(st.session_state.university_mode)
+                        else:
+                            st.error("🔄 Updating system... Please refresh the page.")
+                            st.cache_resource.clear()  # Clear cache to get updated methods
+                    else:
+                        st.warning("⚠️ RAG system not initialized yet. Mode will be applied when system starts.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error toggling mode: {e}")
+                    # Try to clear cache and reinitialize
+                    st.cache_resource.clear()
+                    # Ensure session state exists
+                    if "university_mode" not in st.session_state:
+                        st.session_state.university_mode = True
+        
+        # Mode explanation
+        if current_mode:
+            st.info("📚 **University Mode**: Questions are answered using the Student Handbook and university policies.")
+        else:
+            st.info("🧠 **General Mode**: Questions are answered using AI general knowledge and web content.")
+        
+        st.divider()
+        
         # Conversation History section
         st.markdown("### 💭 Recent Conversation")
         rag_system = get_rag_system()
@@ -308,20 +423,26 @@ def main():
         st.markdown(f"""
         **Bulldog Buddy** is your AI-powered 24/7 campus companion! 🤖🐶
         
+        **🆕 NEW: Website Analysis Feature!**  
+        Just paste any website URL in your message and I'll analyze it for you!
+        
         **Current Model:** {current_model_display}  
         **Embeddings:** EmbeddingGemma  
-        **Vector DB:** ChromaDB  
-        **Knowledge:** National University Student Handbook  
+        **Vector DB:** ChromaDB + Web Content Analysis  
+        **Knowledge:** University Handbook + Live Web Content  
         **Memory:** Remembers last 10 conversations for context
         
         **I can help with:**
         - 📚 Academic questions & study tips
         - 🏫 Campus information & directions  
-        - 🍽️ Dining options & hours
+        - � **Website content analysis** (NEW!)
+        - 🔍 **Similarity search on any webpage** (NEW!)
         - 📅 Events & important dates
         - 💡 General advice & support
         - 🔄 Follow-up questions using conversation history
         - 🎓 And much more!
+        
+        **Example:** "Analyze https://example.com and tell me about their pricing"
         
         *I'm always learning and getting smarter! Woof!* 🐾
         """)
@@ -389,6 +510,65 @@ def main():
                 st.info("🔄 Knowledge base ready to load")
         else:
             st.error("❌ Knowledge base unavailable")
+        
+        # Debug section (for development)
+        with st.expander("🔧 Debug Tools", expanded=False):
+            if st.button("🗑️ Clear System Cache", help="Clear cached RAG system"):
+                # Clear both caches
+                st.cache_resource.clear()
+                if 'rag_system_instance' in st.session_state:
+                    del st.session_state.rag_system_instance
+                st.success("Cache cleared! The system will reinitialize.")
+                st.rerun()
+            
+            # Show current RAG system methods
+            rag_system = get_rag_system()
+            if rag_system:
+                has_uni_mode = hasattr(rag_system, 'set_university_mode')
+                st.write(f"University mode methods: {'✅' if has_uni_mode else '❌'}")
+                if has_uni_mode:
+                    try:
+                        mode_info = rag_system.get_mode_info()
+                        current_mode = mode_info.get('university_mode', False)
+                        st.write(f"Current mode: {'🏫 University' if current_mode else '🌐 General'}")
+                    except:
+                        st.write("Mode info: ❌ Error getting info")
+            else:
+                st.write("RAG system: ❌ Not available")
+        
+        st.divider()
+        
+        # Web Session Info
+        rag_system = get_rag_system_with_model(st.session_state.get("selected_model", "gemma3:latest"))
+        if rag_system and rag_system.web_session_active:
+            st.markdown("### 🌐 Active Web Session")
+            web_info = rag_system.get_web_session_info()
+            
+            st.success(f"📊 {len(web_info['urls'])} website(s) loaded")
+            st.info(f"📄 {web_info['total_documents']} sections available")
+            
+            # Show active URLs
+            with st.expander("🔗 Active Websites", expanded=False):
+                for url in web_info['urls']:
+                    content_info = rag_system.active_web_content[url]
+                    st.write(f"**{content_info['title']}**")
+                    st.write(f"🌐 {url}")
+                    st.write(f"📄 {content_info['document_count']} sections")
+                    
+                    # Clear individual website button
+                    if st.button(f"❌ Remove", key=f"clear_web_{hash(url)}", use_container_width=True):
+                        rag_system.clear_web_content(url)
+                        st.success(f"Removed website: {content_info['title']}")
+                        st.rerun()
+                    st.divider()
+            
+            # Clear all web content button
+            if st.button("🗑️ Clear All Websites", key="clear_all_web", use_container_width=True):
+                rag_system.clear_web_content()
+                st.success("All web content cleared!")
+                st.rerun()
+            
+            st.info("💬 You can now ask follow-up questions about these websites without pasting URLs again!")
         
         # Clear chat button
         if st.button("🗑️ Clear Chat History", key="clear", use_container_width=True):
