@@ -1,4 +1,4 @@
-# 🐶 Bulldog Buddy - Smart AI Assistant with Retrieval Augmented Generation
+# Bulldog Buddy - Smart AI Assistant + RAG System
 
 An intelligent conversational AI system designed specifically for National University students. This advanced RAG (Retrieval Augmented Generation) chatbot combines the personality of a friendly bulldog mascot with sophisticated AI technology to provide accurate, helpful responses to both university-specific and general knowledge questions.
 
