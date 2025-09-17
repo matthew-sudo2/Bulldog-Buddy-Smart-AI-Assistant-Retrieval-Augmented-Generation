@@ -116,12 +116,10 @@ Bulldog-Buddy-AI/
 ├── models/
 │   ├── __init__.py
 │   └── enhanced_rag_system.py     # Core RAG system implementation
+│   └── web_scraper.py             # Web Browsing using Beautiful Soup
 ├── data/
 │   ├── student-handbook-structured.csv  # Main knowledge base
 │   ├── student-handbook.csv       # Additional handbook data
-│   └── student-handbook.txt       # Text format backup
-├── demo_models.py                 # Model comparison demo
-└── test_model_switching.py        # Testing framework
 ```
 
 ##  System Performance
