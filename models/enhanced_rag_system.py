@@ -884,8 +884,18 @@ Instructions:
         clean_question, urls = self._detect_urls_in_query(query)
         
         if not urls:
-            # No URLs found, use regular ask_question method
-            return self.ask_question(clean_question)
+            # No new URLs, but query active web content without recursion
+            if not self.web_session_active:
+                # No web session active and no URLs provided
+                return {
+                    "answer": f"Woof! I don't have any website content to analyze right now. Please share a website URL and I'll analyze it for you! 🐶",
+                    "sources": [],
+                    "confidence": 0.0,
+                    "type": "no_web_content"
+                }
+            
+            # Query existing web content directly (avoid recursion)
+            return self._query_existing_web_content_only(clean_question)
         
         try:
             # Process web content if new URLs are provided
@@ -986,6 +996,82 @@ Bulldog Buddy's Response:"""
     
     # ================== PERSISTENT WEB CONTENT METHODS ==================
     
+    def _query_existing_web_content_only(self, question: str) -> Dict[str, Any]:
+        """Query existing web content without recursion - used for follow-up questions"""
+        try:
+            if not self.web_session_active:
+                return {
+                    "answer": f"Woof! I don't have any website content active right now. Please share a website URL first! 🐶",
+                    "sources": [],
+                    "confidence": 0.0,
+                    "type": "no_web_content"
+                }
+            
+            # Query existing web content
+            web_results = self.query_active_web_content(question, k=5)
+            
+            # Build context from active web content
+            web_context_parts = []
+            sources = []
+            
+            for doc in web_results:
+                web_context_parts.append(f"From {doc.metadata['active_title']}: {doc.page_content}")
+                sources.append({
+                    "title": doc.metadata['active_title'],
+                    "url": doc.metadata['active_url'],
+                    "content": doc.page_content,
+                    "relevance_score": doc.metadata.get('relevance_score', 0.8)
+                })
+            
+            web_context = "\n\n".join(web_context_parts)
+            
+            # Add context about active web session
+            session_summary = self.get_active_web_context_summary()
+            
+            # Create specialized prompt for follow-up questions
+            web_followup_prompt = f"""You are Bulldog Buddy, a friendly AI assistant! 🐶
+
+{session_summary}
+
+The user is asking a follow-up question about the website content we've been discussing. Use the most relevant information from the websites below to answer their question accurately.
+
+Relevant Website Content:
+{web_context}
+
+User's Follow-up Question: {question}
+
+Instructions:
+- This is a follow-up question in our ongoing conversation about these websites
+- Answer based on the website content provided above
+- Be helpful and maintain conversation flow
+- Include your bulldog personality with appropriate emojis
+- If you need more specific information, let them know what you found and offer to help further
+- Reference the website source when providing specific information
+
+Bulldog Buddy's Response:"""
+
+            # Get response from LLM
+            response = self.llm.invoke(web_followup_prompt)
+            
+            return {
+                "answer": response,
+                "sources": sources,
+                "confidence": 0.8,
+                "type": "web_followup",
+                "urls_processed": list(self.active_web_content.keys()),
+                "documents_found": len(sources),
+                "active_session": True
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error in web follow-up query: {e}")
+            return {
+                "answer": f"Woof! I had trouble accessing the website content. Let me know if you'd like to try again or if there's something else I can help with! 🐶",
+                "sources": [],
+                "confidence": 0.0,
+                "type": "error"
+            }
+
     def add_web_content_to_memory(self, urls: List[str], documents: List[Document]) -> bool:
         """Store web content in persistent memory for conversation continuity"""
         try:
