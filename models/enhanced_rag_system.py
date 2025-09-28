@@ -19,6 +19,19 @@ from langchain_core.prompts import PromptTemplate
 
 from .web_scraper import WebContentScraper
 
+# Import user context manager
+try:
+    import sys
+    from pathlib import Path
+    # Add core directory to path
+    core_dir = Path(__file__).parent.parent / "core"
+    sys.path.insert(0, str(core_dir))
+    
+    from core.user_context import UserContextManager
+except ImportError:
+    UserContextManager = None
+    logging.warning("UserContextManager not available - context features disabled")
+
 class EnhancedRAGSystem:
     """Enhanced RAG system using LangChain for better retrieval and QA"""
     
@@ -36,9 +49,14 @@ class EnhancedRAGSystem:
         }
     }
     
-    def __init__(self, handbook_path: str, db_path: str = "./enhanced_chroma_db", model_name: str = "gemma3:latest"):
+    def __init__(self, handbook_path: str, db_path: str = None, model_name: str = "gemma3:latest"):
         self.handbook_path = handbook_path
-        self.db_path = db_path
+        # Set default db_path relative to project root
+        if db_path is None:
+            project_root = os.path.dirname(os.path.dirname(__file__))
+            self.db_path = os.path.join(project_root, "enhanced_chroma_db")
+        else:
+            self.db_path = db_path
         self.model_name = model_name
         self.logger = logging.getLogger(__name__)
         
@@ -89,6 +107,13 @@ class EnhancedRAGSystem:
             return_messages=True,
             output_key="answer"
         )
+        
+        # User context management (ChatGPT-like memory)
+        self.context_manager = UserContextManager() if UserContextManager else None
+        self.current_user_id = None
+        
+        # Conversation history for follow-up awareness
+        self.conversation_history = []
         
     def initialize_database(self, force_rebuild: bool = False):
         """Initialize the enhanced vector database with LangChain"""
@@ -233,7 +258,7 @@ class EnhancedRAGSystem:
         return EnhancedRetriever(self, k)
     
     def _initialize_chains(self):
-        """Initialize the QA and conversational chains"""
+        """Initialize the QA and conversational chains with enhanced memory"""
         # Custom prompt template for better responses
         custom_prompt = PromptTemplate(
             template="""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant. 
@@ -258,7 +283,7 @@ Bulldog Buddy's Answer:""",
             input_variables=["context", "question"]
         )
         
-        # Initialize RetrievalQA chain (back to original)
+        # Initialize RetrievalQA chain
         self.qa_chain = RetrievalQA.from_chain_type(
             llm=self.llm,
             chain_type="stuff",
@@ -270,13 +295,45 @@ Bulldog Buddy's Answer:""",
             chain_type_kwargs={"prompt": custom_prompt}
         )
         
-        # Initialize Conversational Retrieval Chain (back to original)
+        # Enhanced conversational prompt template for follow-up awareness
+        conversational_prompt = PromptTemplate(
+            template="""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant. You're having an ongoing conversation with a student and should maintain context awareness.
+
+Chat History:
+{chat_history}
+
+Context from knowledge base:
+{context}
+
+Current Question: {question}
+
+Instructions:
+- You are aware of the ongoing conversation context
+- Reference previous topics naturally when relevant
+- Be enthusiastic and supportive with a bulldog personality  
+- Use "Woof!" occasionally but naturally
+- Provide accurate and conversational answers that flow naturally
+- If the context doesn't contain relevant information, use your conversation awareness
+- Use emojis appropriately (🐶, 🐾, 📚, 🏫)
+- Keep responses helpful and conversational
+
+Bulldog Buddy's Conversational Answer:""",
+            input_variables=["chat_history", "context", "question"]
+        )
+        
+        # Initialize Enhanced Conversational Retrieval Chain with better memory
         self.conversational_chain = ConversationalRetrievalChain.from_llm(
             llm=self.llm,
             retriever=self.vectorstore.as_retriever(search_kwargs={"k": 8}),
-            memory=self.memory,
+            memory=ConversationBufferWindowMemory(
+                k=10,  # Remember last 10 exchanges
+                memory_key="chat_history", 
+                return_messages=True,
+                output_key="answer"
+            ),
             return_source_documents=True,
-            verbose=True
+            combine_docs_chain_kwargs={"prompt": conversational_prompt},
+            verbose=False  # Set to True for debugging
         )
     
     def get_current_model_info(self) -> Dict[str, Any]:
@@ -327,8 +384,77 @@ Bulldog Buddy's Answer:""",
         """Get list of available models"""
         return cls.AVAILABLE_MODELS
     
+    def set_user_context(self, user_id: int):
+        """Set the current user for context management"""
+        self.current_user_id = user_id
+        self.logger.info(f"Set user context for user ID: {user_id}")
+    
+    def add_to_history(self, user_message: str, assistant_response: str):
+        """Add exchange to conversation history and save to database"""
+        timestamp = datetime.now().strftime("%H:%M")
+        exchange = {
+            "user": user_message,
+            "assistant": assistant_response,
+            "timestamp": timestamp
+        }
+        
+        self.conversation_history.append(exchange)
+        
+        # Keep only last 20 exchanges to prevent memory bloat
+        if len(self.conversation_history) > 20:
+            self.conversation_history = self.conversation_history[-20:]
+        
+        # Save to database if conversation manager is available
+        try:
+            import streamlit as st
+            if hasattr(st, 'session_state') and hasattr(st.session_state, 'conversation_manager'):
+                conversation_manager = st.session_state.conversation_manager
+                if conversation_manager and hasattr(st.session_state, 'current_session_uuid'):
+                    session_uuid = st.session_state.current_session_uuid
+                    user_id = self.current_user_id or 1  # Default to user_id 1 if not set
+                    
+                    # Add user message
+                    conversation_manager.add_message_to_session(
+                        session_uuid=session_uuid,
+                        user_id=user_id,
+                        content=user_message,
+                        message_type='user'
+                    )
+                    
+                    # Add assistant response
+                    conversation_manager.add_message_to_session(
+                        session_uuid=session_uuid,
+                        user_id=user_id,
+                        content=assistant_response,
+                        message_type='assistant',
+                        model_used=getattr(self, 'model_name', 'unknown')
+                    )
+        except Exception as e:
+            print(f"Warning: Could not save conversation to database: {e}")
+        
+        # Update user context if available
+        if self.context_manager and self.current_user_id:
+            self.context_manager.update_conversation_context(
+                user_id=self.current_user_id,
+                user_message=user_message,
+                assistant_response=assistant_response,
+                conversation_history=self.conversation_history
+            )
+    
     def ask_question(self, question: str, use_conversation_history: bool = True) -> Dict[str, Any]:
-        """Ask a question and get an enhanced response with sources"""
+        """
+        Enhanced conversational ask_question method with ChatGPT-like awareness
+        - Extracts and remembers user information
+        - Uses conversation memory for better context
+        - Rewrites follow-up questions for better retrieval
+        """
+        
+        # Extract user information if context manager is available
+        if self.context_manager and self.current_user_id:
+            self.context_manager.extract_user_info(question, self.current_user_id)
+        
+        # Enhanced follow-up question detection
+        is_followup = self._detect_follow_up_question(question)
         
         # First check if there are URLs in the question
         clean_question, urls = self._detect_urls_in_query(question)
@@ -346,55 +472,82 @@ Bulldog Buddy's Answer:""",
                 }
         
         try:
-            # If we have active web content and this is not a new web query, consider using web context
-            if self.web_session_active and not urls:
-                # Check if the question might be related to active web content
-                web_relevance = self._is_web_related_query(clean_question)
-                if web_relevance > 0.3:  # Lowered threshold for better follow-up detection
-                    return self.ask_question_with_web_content(question)
+            # ENHANCED CONVERSATIONAL HANDLING
+            if is_followup and use_conversation_history and len(self.conversation_history) > 0:
+                # For follow-ups: Rewrite the question with context + use conversational approach
+                standalone_question = self._rewrite_followup_question(question)
+                self.logger.info(f"Follow-up detected: '{question}' -> Standalone: '{standalone_question}'")
+                
+                # If we have active web content, consider using web context
+                if self.web_session_active:
+                    web_relevance = self._is_web_related_query(clean_question)
+                    if web_relevance > 0.3:
+                        return self.ask_question_with_web_content(question)
+                
+                # Use conversational chain for university mode, or conversational prompt for general mode
+                if self.is_university_mode_enabled() and self.conversational_chain:
+                    try:
+                        result = self.conversational_chain.invoke({
+                            "question": standalone_question
+                        })
+                        
+                        # Extract source information
+                        source_docs = result.get("source_documents", [])
+                        sources = self._format_sources(source_docs)
+                        
+                        final_result = {
+                            "answer": result.get("answer", ""),
+                            "source_documents": sources,
+                            "confidence": self._calculate_confidence(standalone_question, source_docs),
+                            "mode": "conversational",
+                            "is_followup": True,
+                            "rewritten_query": standalone_question
+                        }
+                        
+                        # Store conversation for context
+                        self._add_to_conversation_history(question, final_result["answer"])
+                        
+                        return final_result
+                    except Exception as e:
+                        self.logger.error(f"Conversational chain failed: {e}")
+                        # Fallback to regular QA chain
+                        pass
+                else:
+                    # Handle conversational general queries
+                    return self._handle_conversational_general_query(standalone_question, question)
             
-            # Check if this is a financial/tuition query and handle specially
+            # For new topics or non-conversational mode
+            enhanced_question = self._build_contextual_question(question)
+            
+            # Check for special query types
             if self._is_financial_query(clean_question):
                 return self._handle_financial_query(clean_question)
             
-            # Check if this is a grading system query and handle specially
             if self._is_grading_query(clean_question):
                 return self._handle_grading_query(clean_question)
             
-            # Check university mode setting to determine how to handle the query
+            # Regular RAG handling based on mode
             if self.is_university_mode_enabled():
-                # In university mode: Use handbook for all questions
-                if use_conversation_history and self.conversational_chain:
-                    # Use conversational chain for follow-up questions
-                    result = self.conversational_chain({
-                        "question": clean_question
-                    })
-                else:
-                    # Use simple QA chain
-                    result = self.qa_chain({
-                        "query": clean_question
-                    })
+                result = self.qa_chain({
+                    "query": enhanced_question
+                })
                 
-                # Extract source information
                 source_docs = result.get("source_documents", [])
-                sources = []
+                sources = self._format_sources(source_docs)
                 
-                for doc in source_docs:
-                    sources.append({
-                        "title": doc.metadata.get("title", "Unknown Section"),
-                        "content": doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
-                        "category": doc.metadata.get("category", "General"),
-                        "section_number": doc.metadata.get("section_number", ""),
-                    })
-                
-                return {
+                final_result = {
                     "answer": result.get("answer", result.get("result", "")),
                     "source_documents": sources,
                     "confidence": self._calculate_confidence(question, source_docs),
-                    "mode": "university"
+                    "mode": "university",
+                    "is_followup": False
                 }
+                
+                # Store conversation for context
+                self._add_to_conversation_history(question, final_result["answer"])
+                
+                return final_result
             else:
-                # In general mode: Use AI training data for general knowledge
                 return self._handle_general_query(clean_question)
             
         except Exception as e:
@@ -404,6 +557,31 @@ Bulldog Buddy's Answer:""",
                 "source_documents": [],
                 "confidence": 0.0
             }
+    
+    def _build_contextual_question(self, question: str) -> str:
+        """
+        Build enhanced question with user context and conversation awareness
+        Similar to how ChatGPT maintains context
+        """
+        enhanced_question = question
+        
+        # Add user context if available
+        if self.context_manager and self.current_user_id:
+            user_context = self.context_manager.build_context_prompt(self.current_user_id)
+            if user_context:
+                enhanced_question = f"{user_context}\n\nUser Question: {question}"
+        
+        # Add follow-up context analysis
+        if len(self.conversation_history) > 0:
+            previous_response = self.conversation_history[-1]['assistant'] if self.conversation_history else ""
+            follow_up_context = self.context_manager.analyze_follow_up_context(
+                question, previous_response, self.current_user_id
+            ) if self.context_manager else ""
+            
+            if follow_up_context:
+                enhanced_question += follow_up_context
+        
+        return enhanced_question
     
     def stream_answer(self, question: str):
         """Stream answer for typewriter effect"""
@@ -454,7 +632,34 @@ Bulldog Buddy's Answer:""",
     def clear_conversation_history(self):
         """Clear the conversation memory"""
         self.memory.clear()
+        self.conversation_history.clear()
+        if hasattr(self, 'conversation_memory') and self.conversation_memory:
+            self.conversation_memory.clear()
         self.logger.info("Conversation history cleared")
+    
+    def _add_to_conversation_history(self, question: str, answer: str):
+        """Add Q&A to conversation history for follow-up detection"""
+        try:
+            self.conversation_history.append({
+                "user": question,  # Using 'user' key to match _get_recent_conversation_context
+                "assistant": answer,  # Using 'assistant' key to match _get_recent_conversation_context
+                "question": question,  # Keep backward compatibility
+                "answer": answer,  # Keep backward compatibility
+                "timestamp": str(datetime.now())
+            })
+            
+            # Keep only the last 20 exchanges to prevent memory overflow
+            if len(self.conversation_history) > 20:
+                self.conversation_history = self.conversation_history[-20:]
+                
+            # Also add to LangChain memory if available
+            if hasattr(self, 'conversation_memory') and self.conversation_memory:
+                self.conversation_memory.save_context(
+                    {"input": question}, 
+                    {"output": answer}
+                )
+        except Exception as e:
+            self.logger.error(f"Failed to add to conversation history: {e}")
     
     def get_database_stats(self) -> Dict[str, Any]:
         """Get enhanced database statistics"""
@@ -692,17 +897,73 @@ Bulldog Buddy's Answer:"""
             # Get response from LLM without forcing handbook context
             response = self.llm.invoke(general_prompt)
             
-            return {
+            final_result = {
                 "answer": response,
                 "source_documents": [],  # No handbook sources for general questions
                 "confidence": 0.8,  # Good confidence for general knowledge
                 "mode": "general"
             }
             
+            # Store conversation for context (important for follow-up detection)
+            self._add_to_conversation_history(question, final_result["answer"])
+            
+            return final_result
+            
         except Exception as e:
             self.logger.error(f"Error in general query handler: {e}")
             return {
                 "answer": "Woof! I encountered an error while thinking about that question. Please try again! 🐶",
+                "source_documents": [],
+                "confidence": 0.0
+            }
+    
+    def _handle_conversational_general_query(self, standalone_question: str, original_question: str) -> Dict[str, Any]:
+        """Handle conversational general knowledge queries with context awareness"""
+        try:
+            # Get recent conversation context
+            recent_context = self._get_recent_conversation_context(max_exchanges=2)
+            
+            # Create conversational general prompt
+            conversational_prompt = f"""You are Bulldog Buddy, a friendly and knowledgeable Smart Campus Assistant! 
+
+Recent conversation context:
+{recent_context}
+
+Current Question: {standalone_question}
+
+Instructions:
+- This is a follow-up question in our ongoing conversation
+- Use your general knowledge to answer, referencing our previous discussion naturally
+- Be enthusiastic and supportive with a bulldog personality  
+- Use "Woof!" occasionally but naturally
+- Provide accurate, helpful, and educational answers that flow from our conversation
+- Use emojis appropriately (🐶, 🐾, 📚, 🧠, 💡)
+- Keep responses informative yet friendly and conversational
+- Reference what we were discussing before when relevant
+
+Bulldog Buddy's Conversational Answer:"""
+
+            # Get response from LLM with conversation context
+            response = self.llm.invoke(conversational_prompt)
+            
+            final_result = {
+                "answer": response,
+                "source_documents": [],  # No handbook sources for general questions
+                "confidence": 0.8,  # Good confidence for general knowledge
+                "mode": "conversational",
+                "is_followup": True,
+                "rewritten_query": standalone_question
+            }
+            
+            # Store conversation for context
+            self._add_to_conversation_history(original_question, final_result["answer"])
+            
+            return final_result
+            
+        except Exception as e:
+            self.logger.error(f"Error in conversational general query handler: {e}")
+            return {
+                "answer": "Woof! I encountered an error while thinking about that follow-up question. Please try again! 🐶",
                 "source_documents": [],
                 "confidence": 0.0
             }
@@ -1292,6 +1553,248 @@ Bulldog Buddy's Response:"""
             "data_source": "Student Handbook + Conversation Memory" if self.is_university_mode_enabled()
                           else "AI Training Data + Web Content"
         }
+    
+    def _detect_follow_up_question(self, question: str) -> bool:
+        """
+        Enhanced follow-up question detection with wider triggers
+        Similar to how ChatGPT detects when users are continuing a conversation
+        """
+        if len(self.conversation_history) == 0:
+            return False
+        
+        question_lower = question.lower().strip()
+        
+        # Expanded follow-up indicators
+        follow_up_patterns = {
+            # Pronouns and references
+            'pronouns': ['it', 'that', 'this', 'they', 'them', 'those', 'these', 'which', 'what about', 'how about'],
+            
+            # Question starters that often indicate follow-ups
+            'question_starters': ['what about', 'how about', 'what if', 'can you', 'could you', 'would you', 
+                                 'do you', 'does it', 'is it', 'are they', 'will it', 'should i'],
+            
+            # Continuation words
+            'continuations': ['also', 'additionally', 'furthermore', 'moreover', 'besides', 'plus', 
+                             'and', 'but', 'however', 'though', 'although'],
+            
+            # Comparative questions
+            'comparisons': ['compared to', 'versus', 'vs', 'difference between', 'similar to', 
+                           'like that', 'same as', 'different from'],
+            
+            # Clarification requests
+            'clarifications': ['explain', 'clarify', 'elaborate', 'more details', 'tell me more', 
+                              'specifically', 'exactly', 'precisely', 'in detail'],
+            
+            # Short questions (often follow-ups)
+            'short_questions': ['why?', 'how?', 'when?', 'where?', 'really?', 'sure?', 'ok?', 'right?'],
+            
+            # Action-related follow-ups
+            'actions': ['apply', 'register', 'enroll', 'submit', 'pay', 'contact', 'visit', 'call', 'email'],
+            
+            # Temporal follow-ups
+            'temporal': ['then', 'next', 'after', 'before', 'later', 'earlier', 'previously', 'subsequently']
+        }
+        
+        # Check for follow-up patterns
+        for category, patterns in follow_up_patterns.items():
+            for pattern in patterns:
+                if pattern in question_lower:
+                    self.logger.debug(f"Follow-up detected via {category}: {pattern}")
+                    return True
+        
+        # Check for short questions (often follow-ups)
+        if len(question.split()) <= 3 and '?' in question:
+            self.logger.debug("Follow-up detected via short question")
+            return True
+        
+        # Check for questions that start without context (often assume previous topic)
+        context_free_starters = ['what are', 'how do', 'can i', 'where is', 'when is', 'why is']
+        for starter in context_free_starters:
+            if question_lower.startswith(starter) and len(self.conversation_history) > 0:
+                # If we have recent conversation about a specific topic, this might be a follow-up
+                recent_topic = self._extract_recent_topic()
+                if recent_topic:
+                    self.logger.debug(f"Follow-up detected via context-free starter with recent topic: {recent_topic}")
+                    return True
+        
+        return False
+    
+    def _build_enhanced_contextual_question(self, question: str) -> str:
+        """
+        Build enhanced contextual question with comprehensive conversation awareness
+        This makes the model much more aware of previous conversation context
+        """
+        if len(self.conversation_history) == 0:
+            return self._build_contextual_question(question)
+        
+        # Get recent conversation context (last 2-3 exchanges)
+        recent_history = self.conversation_history[-3:] if len(self.conversation_history) >= 3 else self.conversation_history
+        
+        # Build comprehensive context
+        context_parts = []
+        
+        # Add user context if available
+        if self.context_manager and self.current_user_id:
+            user_context = self.context_manager.build_context_prompt(self.current_user_id)
+            if user_context:
+                context_parts.append(f"USER PROFILE:\n{user_context}")
+        
+        # Add conversation history context
+        if recent_history:
+            context_parts.append("RECENT CONVERSATION:")
+            for i, exchange in enumerate(recent_history):
+                context_parts.append(f"User: {exchange['human']}")
+                context_parts.append(f"Assistant: {exchange['assistant'][:300]}..." if len(exchange['assistant']) > 300 else f"Assistant: {exchange['assistant']}")
+                context_parts.append("---")
+        
+        # Add current question with clear indication it's a follow-up
+        context_parts.append(f"CURRENT FOLLOW-UP QUESTION: {question}")
+        context_parts.append("")
+        context_parts.append("INSTRUCTIONS: This is a follow-up question related to the recent conversation above. Please answer considering the full context of our discussion. If the question refers to 'it', 'that', 'they', or other pronouns, determine what they refer to from the conversation history.")
+        
+        enhanced_question = "\n".join(context_parts)
+        
+        self.logger.debug(f"Enhanced contextual question built with {len(recent_history)} exchanges")
+        return enhanced_question
+    
+    def _extract_recent_topic(self) -> str:
+        """Extract the main topic from recent conversation"""
+        if not self.conversation_history:
+            return ""
+        
+        # Get the last user question and assistant response
+        last_exchange = self.conversation_history[-1]
+        last_question = last_exchange.get('human', '')
+        last_response = last_exchange.get('assistant', '')
+        
+        # Simple topic extraction - look for key nouns in the question
+        import re
+        
+        # Extract potential topics from the last question
+        topic_patterns = [
+            r'about (\w+)',
+            r'(\w+) (fee|cost|price|tuition)',
+            r'(\w+) (program|course|class)',
+            r'(\w+) (requirement|policy|procedure)',
+            r'how to (\w+)',
+            r'what is (\w+)',
+            r'where is (\w+)'
+        ]
+        
+        for pattern in topic_patterns:
+            matches = re.findall(pattern, last_question.lower())
+            if matches:
+                return matches[0] if isinstance(matches[0], str) else ' '.join(matches[0])
+        
+        return ""
+    
+    def _rewrite_followup_question(self, question: str) -> str:
+        """
+        Rewrite a follow-up question to be standalone using conversation context
+        Similar to how ChatGPT expands follow-up questions
+        """
+        if not self.conversation_history:
+            return question
+        
+        # Get recent conversation context
+        recent_context = self._get_recent_conversation_context(max_exchanges=2)
+        
+        # Create a prompt to rewrite the question
+        rewrite_prompt = f"""You are a query rewriter. Convert the follow-up question into a standalone question that includes necessary context from the conversation.
+
+Recent conversation context:
+{recent_context}
+
+Follow-up question: {question}
+
+Instructions:
+- Convert the follow-up question into a complete, standalone question
+- Include relevant context from the conversation history
+- Keep it concise but complete
+- Don't change the intent or add new information
+
+Standalone question:"""
+
+        try:
+            # Use the LLM to rewrite the question
+            rewritten = self.llm.invoke(rewrite_prompt)
+            
+            # Clean up the response
+            rewritten = rewritten.strip()
+            if not rewritten.endswith('?'):
+                rewritten += '?'
+            
+            return rewritten
+            
+        except Exception as e:
+            self.logger.error(f"Error rewriting question: {e}")
+            # Fallback: manually combine context
+            return self._simple_question_rewrite(question)
+    
+    def _simple_question_rewrite(self, question: str) -> str:
+        """Simple fallback method to rewrite questions with context"""
+        if not self.conversation_history:
+            return question
+        
+        # Get the last user question and topic
+        last_exchange = self.conversation_history[-1]
+        last_user_question = last_exchange.get('user', '')
+        
+        # Simple context expansion
+        if any(word in question.lower() for word in ['it', 'that', 'this', 'they']):
+            recent_topic = self._extract_recent_topic()
+            if recent_topic:
+                return f"{question} (referring to: {recent_topic})"
+        
+        return question
+    
+    def _get_recent_conversation_context(self, max_exchanges: int = 2) -> str:
+        """Get formatted recent conversation context"""
+        if not self.conversation_history:
+            return "No previous conversation."
+        
+        context_parts = []
+        recent_exchanges = self.conversation_history[-max_exchanges:]
+        
+        for i, exchange in enumerate(recent_exchanges, 1):
+            user_msg = exchange.get('user', '')
+            assistant_msg = exchange.get('assistant', '')
+            
+            context_parts.append(f"Exchange {i}:")
+            context_parts.append(f"User: {user_msg}")
+            context_parts.append(f"Assistant: {assistant_msg[:200]}..." if len(assistant_msg) > 200 else f"Assistant: {assistant_msg}")
+            context_parts.append("")  # Empty line for readability
+        
+        return "\n".join(context_parts)
+    
+    def _get_formatted_chat_history(self) -> List:
+        """Get conversation history in LangChain format"""
+        formatted_history = []
+        
+        for exchange in self.conversation_history[-5:]:  # Last 5 exchanges
+            user_msg = exchange.get('user', '')
+            assistant_msg = exchange.get('assistant', '')
+            
+            if user_msg:
+                formatted_history.append(("human", user_msg))
+            if assistant_msg:
+                formatted_history.append(("ai", assistant_msg))
+        
+        return formatted_history
+    
+    def _format_sources(self, source_docs: List[Document]) -> List[Dict]:
+        """Format source documents for response"""
+        sources = []
+        
+        for doc in source_docs:
+            sources.append({
+                "title": doc.metadata.get("title", "Unknown Section"),
+                "content": doc.page_content[:200] + "..." if len(doc.page_content) > 200 else doc.page_content,
+                "category": doc.metadata.get("category", "General"),
+                "section_number": doc.metadata.get("section_number", ""),
+            })
+        
+        return sources
 
 # Test function
 if __name__ == "__main__":
@@ -1299,7 +1802,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     
     # Test the enhanced RAG system
-    rag = EnhancedRAGSystem("./data/student-handbook-structured.csv")
+    rag = EnhancedRAGSystem(os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "student-handbook-structured.csv"))
     
     success = rag.initialize_database(force_rebuild=True)
     print(f"Initialization: {'Success' if success else 'Failed'}")

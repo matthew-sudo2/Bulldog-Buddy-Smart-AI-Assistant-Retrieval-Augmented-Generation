@@ -221,6 +221,11 @@ secrets/
 # Test files
 test_output/
 test_results/
+*test*.py
+test_*.py
+*_test.py
+*debug*.py
+temp_*.py
 
 # Documentation build
 docs/build/

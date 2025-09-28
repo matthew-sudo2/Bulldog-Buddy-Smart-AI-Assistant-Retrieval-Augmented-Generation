@@ -57,7 +57,7 @@ An intelligent conversational AI system designed specifically for National Unive
 
 3. **Run the application:**
    ```bash
-   streamlit run ui.py
+   streamlit run core/ui.py
    ```
    
    The app will open in your browser at `http://localhost:8501`
@@ -109,19 +109,23 @@ An intelligent conversational AI system designed specifically for National Unive
 
 ```
 Bulldog-Buddy-AI/
-├── ui.py                           # Main Streamlit application
+├── core/
+│   ├── ui.py                           # Main Streamlit application
 ├── requirements.txt                # Python dependencies
 ├── README.md                      # This file
 ├── .gitignore                     # Git ignore rules
 ├── models/
 │   ├── __init__.py
-│   └── enhanced_rag_system.py     # Core RAG system implementation
+│   ├── enhanced_rag_system.py     # Core RAG system implementation
+│   └── web_scraper.py            # Web content scraping
 ├── data/
-│   ├── student-handbook-structured.csv  # Main knowledge base
-│   ├── student-handbook.csv       # Additional handbook data
-│   └── student-handbook.txt       # Text format backup
-├── demo_models.py                 # Model comparison demo
-└── test_model_switching.py        # Testing framework
+│   └── student-handbook-structured.csv  # Main structured knowledge base
+├── scripts/                      # One-time migration/maintenance scripts
+│   ├── cleanup_duplicates.py
+│   ├── check_user_consistency.py
+│   ├── add_personalization_columns.py
+│   └── upgrade_database.py
+└── enhanced_chroma_db/           # Vector database storage
 ```
 
 ##  System Performance
@@ -145,7 +149,7 @@ Update the CSV files in the `data/` directory to modify the knowledge base:
 - Add new sections following the existing format
 
 ### **UI Customization**
-- Modify colors and branding in `ui.py`
+- Modify colors and branding in `core/ui.py`
 - Update sidebar links and school-specific information
 - Customize the bulldog personality responses
 

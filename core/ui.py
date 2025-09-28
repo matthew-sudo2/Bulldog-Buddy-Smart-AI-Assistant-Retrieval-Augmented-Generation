@@ -5,7 +5,26 @@ import ollama
 import json
 import logging
 import os
+import sys
+from pathlib import Path
+
+# Add parent directory to path to access models
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "core"))
+
 from models.enhanced_rag_system import EnhancedRAGSystem
+
+# Import core modules - handle both relative and absolute imports
+try:
+    from .auth import require_auth, show_user_info, init_session_state as auth_init_session_state
+    from .settings import show_settings_page, init_user_settings, get_current_user_settings, apply_theme, get_personality_prompt_modifier
+    from .conversation_history import ConversationHistoryManager
+except ImportError:
+    # Fallback for when running as script
+    from auth import require_auth, show_user_info, init_session_state as auth_init_session_state
+    from settings import show_settings_page, init_user_settings, get_current_user_settings, apply_theme, get_personality_prompt_modifier
+    from conversation_history import ConversationHistoryManager
 
 # Set page configuration
 st.set_page_config(
@@ -62,16 +81,36 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def initialize_session_state():
-    """Initialize session state variables for chat history"""
+    """Initialize session state variables for chat history and conversation management"""
     if "messages" not in st.session_state:
         st.session_state.messages = []
-        # Add welcome message with personality
+        # Add personalized welcome message
+        user_name = ""
+        if st.session_state.get("authenticated") and st.session_state.get("user"):
+            user_name = f", {st.session_state.user['first_name']}"
+        
         welcome_msg = {
             "role": "assistant", 
-            "content": "Woof woof! 🐶 Hey there, student! I'm Bulldog Buddy, your loyal Smart Campus Assistant! I'm absolutely tail-wagging excited to help you with anything you need - from finding your way around campus to answering questions about classes, dining, library hours, or just chatting about student life! What can this faithful pup help you with today? 🐾",
+            "content": f"Woof woof! 🐶 Hey there{user_name}! I'm Bulldog Buddy, your loyal Smart Campus Assistant! I'm absolutely tail-wagging excited to help you with anything you need - from finding your way around campus to answering questions about classes, dining, library hours, or just chatting about student life! What can this faithful pup help you with today? 🐾",
             "timestamp": datetime.now().strftime("%H:%M")
         }
         st.session_state.messages.append(welcome_msg)
+    
+    # Initialize conversation history manager
+    if "conversation_manager" not in st.session_state:
+        try:
+            st.session_state.conversation_manager = ConversationHistoryManager()
+        except Exception as e:
+            st.error(f"Could not initialize conversation history: {e}")
+            st.session_state.conversation_manager = None
+    
+    # Initialize current conversation session
+    if "current_session_uuid" not in st.session_state:
+        st.session_state.current_session_uuid = None
+    
+    # Initialize conversation history for sidebar
+    if "user_conversations" not in st.session_state:
+        st.session_state.user_conversations = []
     
     # Initialize university mode
     if "university_mode" not in st.session_state:
@@ -80,7 +119,7 @@ def initialize_session_state():
     # Initialize RAG system
     if "rag_system" not in st.session_state:
         try:
-            handbook_path = "./data/student-handbook-structured.csv"
+            handbook_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "student-handbook-structured.csv")
             # Default model
             if "selected_model" not in st.session_state:
                 st.session_state.selected_model = "gemma3:latest"
@@ -91,10 +130,303 @@ def initialize_session_state():
             st.session_state.rag_system = None
             st.session_state.rag_error = str(e)
 
+        return None
+
+
+def create_new_conversation():
+    """Create a new conversation session"""
+    if not st.session_state.get("conversation_manager") or not st.session_state.get("user"):
+        return
+    
+    user_id = st.session_state.user["id"]
+    session_uuid = st.session_state.conversation_manager.create_conversation_session(
+        user_id, 
+        title="New Conversation"
+    )
+    
+    if session_uuid:
+        # Save current conversation if it has messages
+        save_current_conversation()
+        
+        # Start new conversation
+        st.session_state.current_session_uuid = session_uuid
+        st.session_state.messages = []
+        
+        # Initialize saved count for new conversation
+        st.session_state[f"saved_count_{session_uuid}"] = 0
+        
+        # Re-add welcome message
+        initialize_session_state()
+        st.rerun()
+
+
+def save_current_conversation():
+    """Save current conversation to database (only new messages)"""
+    if (not st.session_state.get("conversation_manager") or 
+        not st.session_state.get("current_session_uuid") or
+        not st.session_state.get("user") or
+        len(st.session_state.get("messages", [])) <= 1):  # Only welcome message
+        return
+    
+    try:
+        user_id = st.session_state.user["id"]
+        session_uuid = st.session_state.current_session_uuid
+        
+        # Track how many messages were already saved to avoid duplicates
+        saved_message_count = st.session_state.get(f"saved_count_{session_uuid}", 0)
+        current_messages = st.session_state.get("messages", [])
+        
+        # Only save messages beyond the saved count
+        messages_to_save = []
+        message_index = 0
+        
+        for i, message in enumerate(current_messages):
+            # Skip initial welcome message
+            if message["role"] == "assistant" and i == 0:
+                continue
+                
+            # Only process messages beyond what we've already saved
+            if message_index >= saved_message_count:
+                messages_to_save.append(message)
+            
+            message_index += 1
+        
+        # Save only new messages
+        for message in messages_to_save:
+            success = st.session_state.conversation_manager.add_message_to_session(
+                session_uuid=session_uuid,
+                user_id=user_id,
+                content=message["content"],
+                message_type=message["role"],
+                confidence_score=message.get("confidence", 0.0),
+                model_used=st.session_state.get("selected_model"),
+                sources_used=message.get("sources", [])
+            )
+            
+            if success:
+                saved_message_count += 1
+        
+        # Update the saved count for this session
+        st.session_state[f"saved_count_{session_uuid}"] = saved_message_count
+            
+    except Exception as e:
+        st.error(f"Error saving conversation: {e}")
+
+
+def load_conversation(session_uuid: str):
+    """Load a conversation from history"""
+    if not st.session_state.get("conversation_manager") or not st.session_state.get("user"):
+        return
+    
+    try:
+        # Prevent multiple rapid reloads
+        if st.session_state.get('loading_conversation', False):
+            return
+            
+        st.session_state.loading_conversation = True
+        
+        # Save current conversation first
+        save_current_conversation()
+        
+        user_id = st.session_state.user["id"]
+        messages = st.session_state.conversation_manager.get_session_messages(session_uuid, user_id)
+        
+        # Load messages into session state
+        st.session_state.messages = []
+        for msg in messages:
+            st.session_state.messages.append({
+                "role": msg["message_type"],
+                "content": msg["content"],
+                "timestamp": msg["created_at"].strftime("%H:%M") if msg["created_at"] else "",
+                "confidence": msg.get("confidence_score", 0.0),
+                "sources": msg.get("sources_used", [])
+            })
+        
+        # Set the saved count for this session to prevent re-saving existing messages
+        st.session_state[f"saved_count_{session_uuid}"] = len(messages)
+        
+        st.session_state.current_session_uuid = session_uuid
+        st.session_state.loading_conversation = False
+        st.rerun()
+        
+    except Exception as e:
+        st.session_state.loading_conversation = False
+        st.error(f"Error loading conversation: {e}")
+
+
+def show_conversation_sidebar():
+    """Show organized conversation history sidebar"""
+    if not st.session_state.get("conversation_manager") or not st.session_state.get("user"):
+        return
+    
+    st.markdown("### 💬 Conversations")
+    
+    # New conversation button
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        if st.button("➕ New Chat", key="new_chat", use_container_width=True):
+            create_new_conversation()
+    
+    with col2:
+        if st.button("🔍", key="search_toggle", help="Search conversations"):
+            st.session_state.show_search = not st.session_state.get("show_search", False)
+    
+    # Search conversations
+    if st.session_state.get("show_search", False):
+        search_query = st.text_input("🔍 Search conversations...", key="conv_search")
+        if search_query and len(search_query) > 2:
+            user_id = st.session_state.user["id"]
+            search_results = st.session_state.conversation_manager.search_conversations(
+                user_id, search_query, limit=5
+            )
+            
+            if search_results:
+                st.markdown("**Search Results:**")
+                for result in search_results:
+                    with st.container():
+                        st.markdown(f"""
+                        <div style="border-left: 3px solid #007bff; padding-left: 10px; margin: 5px 0;">
+                            <small><strong>{result['session_title'][:30]}...</strong></small><br>
+                            <small>{result['message_content'][:50]}...</small><br>
+                            <small>Similarity: {result['similarity_score']:.1%}</small>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        if st.button(f"Load", key=f"load_{result['session_id']}", use_container_width=True):
+                            # The session_id in search results is actually the session_uuid
+                            load_conversation(result['session_id'])
+            else:
+                st.info("No conversations found")
+    
+    # Load conversation history
+    try:
+        user_id = st.session_state.user["id"]
+        conversations = st.session_state.conversation_manager.get_user_sessions(
+            user_id, limit=15
+        )
+        
+        if conversations:
+            # Group conversations
+            pinned = [c for c in conversations if c.get("pinned")]
+            recent = [c for c in conversations if not c.get("pinned") and not c.get("is_archived")][:10]
+            
+            # Pinned conversations
+            if pinned:
+                st.markdown("**📌 Pinned**")
+                for conv in pinned:
+                    show_conversation_item(conv, is_pinned=True)
+            
+            # Recent conversations  
+            if recent:
+                st.markdown("**🕒 Recent**")
+                for conv in recent:
+                    show_conversation_item(conv, is_pinned=False)
+            
+            # Show insights
+            if len(conversations) > 0:
+                with st.expander("📊 Conversation Insights", expanded=False):
+                    insights = st.session_state.conversation_manager.get_conversation_insights(user_id)
+                    if insights:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.metric("Total Chats", insights.get("total_sessions", 0))
+                            st.metric("Messages", insights.get("total_messages", 0))
+                        with col2:
+                            st.metric("Avg Length", f"{insights.get('avg_message_length', 0):.0f}")
+                            if insights.get("last_conversation"):
+                                last_conv = insights["last_conversation"].strftime("%m/%d")
+                                st.metric("Last Chat", last_conv)
+        else:
+            st.info("No conversation history yet. Start chatting to see your conversations here!")
+            
+    except Exception as e:
+        st.error(f"Error loading conversations: {e}")
+
+
+def show_conversation_item(conv: dict, is_pinned: bool = False):
+    """Show individual conversation item in sidebar"""
+    # Truncate title
+    title = conv["title"][:25] + "..." if len(conv["title"]) > 25 else conv["title"]
+    
+    # Format time
+    time_str = conv["updated_at"].strftime("%m/%d") if conv["updated_at"] else ""
+    
+    # Current session indicator
+    is_current = st.session_state.get("current_session_uuid") == conv["session_uuid"]
+    
+    # Container for conversation item
+    container = st.container()
+    with container:
+        # Use columns for layout
+        col1, col2, col3 = st.columns([5, 1, 1])
+        
+        with col1:
+            # Conversation button with styling
+            button_style = "🟢 " if is_current else ""
+            if st.button(
+                f"{button_style}{title}",
+                key=f"conv_{conv['session_uuid']}",
+                help=f"{conv['preview']}\n{conv['message_count']} messages • {time_str}",
+                use_container_width=True
+            ):
+                if not is_current:
+                    load_conversation(conv["session_uuid"])
+        
+        with col2:
+            # Pin/unpin button
+            pin_icon = "📌" if is_pinned else "📍"
+            if st.button(
+                pin_icon,
+                key=f"pin_{conv['session_uuid']}",
+                help="Pin/Unpin conversation"
+            ):
+                st.session_state.conversation_manager.pin_conversation(
+                    conv["session_uuid"], 
+                    st.session_state.user["id"],
+                    not is_pinned
+                )
+                st.rerun()
+        
+        with col3:
+            # Delete button
+            if st.button(
+                "🗑️",
+                key=f"del_{conv['session_uuid']}",
+                help="Delete conversation"
+            ):
+                # Prevent rapid deletions
+                if st.session_state.get('deleting_conversation', False):
+                    return
+                    
+                if st.session_state.get(f"confirm_delete_{conv['session_uuid']}", False):
+                    # Actually delete
+                    st.session_state.deleting_conversation = True
+                    st.session_state.conversation_manager.delete_conversation(
+                        conv["session_uuid"],
+                        st.session_state.user["id"]
+                    )
+                    # Clear the confirmation flag
+                    st.session_state[f"confirm_delete_{conv['session_uuid']}"] = False
+                    st.session_state.deleting_conversation = False
+                    
+                    if is_current:
+                        create_new_conversation()
+                    else:
+                        st.rerun()
+                else:
+                    # Ask for confirmation
+                    st.session_state[f"confirm_delete_{conv['session_uuid']}"] = True
+                    st.rerun()
+    
+    # Show confirmation message if needed
+    if st.session_state.get(f"confirm_delete_{conv['session_uuid']}", False):
+        st.warning("⚠️ Click delete again to confirm")
+
+
 def get_rag_system_with_model(model_name: str = "gemma3:latest"):
     """Get RAG system with specific model, preserving web session state"""
     try:
-        handbook_path = "./data/student-handbook-structured.csv"
+        handbook_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "student-handbook-structured.csv")
         
         # Check if we have a cached system with the same model
         if 'rag_system_instance' in st.session_state:
@@ -130,7 +462,7 @@ def get_rag_system_with_model(model_name: str = "gemma3:latest"):
 def get_rag_system():
     """Get or initialize RAG system (cached)"""
     try:
-        handbook_path = "./data/student-handbook-structured.csv"
+        handbook_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "student-handbook-structured.csv")
         
         # Check if we have a cached system with missing methods
         if 'rag_system_instance' in st.session_state:
@@ -165,11 +497,15 @@ def get_rag_system():
 
 def get_bot_response(user_message):
     """
-    Enhanced bot response with web content support
+    Enhanced bot response with web content support and personalization
     """
     try:
         # Get the selected model from session state
         selected_model = st.session_state.get("selected_model", "gemma3:latest")
+        
+        # Get user personalization settings
+        user_settings = get_current_user_settings()
+        personality_modifier = get_personality_prompt_modifier(user_settings)
         
         # Check if the message contains URLs
         if any(keyword in user_message.lower() for keyword in ['http', 'www.', '.com', '.org', '.net', '.edu']):
@@ -182,6 +518,10 @@ def get_bot_response(user_message):
         if rag_system:
             university_mode = st.session_state.get("university_mode", True)
             rag_system.set_university_mode(university_mode)
+            
+            # Apply personality settings to RAG system if possible
+            if hasattr(rag_system, 'set_personality_settings'):
+                rag_system.set_personality_settings(personality_modifier)
         
         # Try to get relevant context using enhanced RAG
         if rag_system:
@@ -243,21 +583,13 @@ def get_bot_response(user_message):
                             st.write(f"{content_preview}...")
                             st.divider()
                 
-                # Stream the response with typewriter effect
-                with st.chat_message("assistant", avatar="🐶"):
-                    message_placeholder = st.empty()
-                    full_response = ""
-                    
-                    # Typewriter effect
-                    for chunk in complete_response.split():
-                        full_response += chunk + " "
-                        message_placeholder.markdown(full_response + "▌")
-                        time.sleep(0.02)
-                    
-                    message_placeholder.markdown(complete_response)
+                # Yield the response for st.write_stream to handle the display
+                # This creates the typewriter effect through st.write_stream
+                words = complete_response.split()
+                for word in words:
+                    yield word + " "
+                    time.sleep(0.01)  # Small delay for typewriter effect
                 
-                # Add to conversation history
-                st.session_state.messages.append({"role": "assistant", "content": complete_response})
                 return
                 
             except Exception as e:
@@ -265,7 +597,15 @@ def get_bot_response(user_message):
                 st.error(f"RAG system error: {str(e)}")
                 # Fall back to basic ollama response
         
-        system_prompt = """You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant. You have the personality of a helpful bulldog - loyal, protective, energetic, and always eager to help students.
+        # Get user's name for personalization
+        user_name = ""
+        if st.session_state.get("user"):
+            user_name = st.session_state.user['first_name']
+        
+        # Build personalized system prompt
+        base_system_prompt = f"""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant. You have the personality of a helpful bulldog - loyal, protective, energetic, and always eager to help students.
+
+The user's name is {user_name if user_name else 'Student'}, and you should use their name occasionally to make responses more personal.
 
 Key personality traits:
 - Start responses with "Woof!" occasionally but not every time
@@ -279,6 +619,12 @@ Key personality traits:
 - Don't make up answers; if unsure, guide the student to official resources
 
 Remember: You're a smart, loyal companion who genuinely cares about helping students succeed!"""
+        
+        # Add personality customization
+        if personality_modifier:
+            system_prompt = base_system_prompt + f"\n\nIMPORTANT PERSONALIZATION INSTRUCTIONS: {personality_modifier}"
+        else:
+            system_prompt = base_system_prompt
 
         # Create the conversation with system prompt
         messages = [
@@ -314,19 +660,43 @@ Remember: You're a smart, loyal companion who genuinely cares about helping stud
         yield error_message
 
 def main():
-    # Initialize session state
+    # Initialize authentication session state
+    auth_init_session_state()
+    
+    # Check if user is authenticated, if not show auth page
+    if not require_auth():
+        return
+    
+    # Initialize user settings
+    init_user_settings()
+    
+    # Get current user settings and apply theme
+    user_settings = get_current_user_settings()
+    apply_theme(user_settings.get("color_theme", "university"))
+    
+    # Check if settings page should be shown
+    if st.session_state.get("show_settings", False):
+        show_settings_page()
+        # Add back button
+        if st.button("← Back to Chat"):
+            st.session_state.show_settings = False
+            st.rerun()
+        return
+    
+    # Initialize chat session state
     initialize_session_state()
+    
+    # Show user info in sidebar
+    show_user_info()
     
     # Sidebar
     with st.sidebar:
-        # School logo/mascot
-        st.markdown('<div class="sidebar-logo">🐶</div>', unsafe_allow_html=True)
-        st.markdown("### Bulldog Buddy")
-        st.markdown("*Your Smart Campus Assistant*")
+        # Conversation History section
+        show_conversation_sidebar()
         
         st.divider()
         
-        # Quick Links section
+        # Quick Links section  
         st.markdown("### 📋 Quick Links")
         
         # School Website
@@ -628,31 +998,94 @@ def main():
     
     # Chat input
     if prompt := st.chat_input("Ask Bulldog Buddy anything about campus life! 🐾"):
-        # Add user message to chat history
-        timestamp = datetime.now().strftime("%H:%M")
-        user_message = {"role": "user", "content": prompt, "timestamp": timestamp}
-        st.session_state.messages.append(user_message)
+        # Prevent multiple simultaneous chat processing
+        if st.session_state.get('processing_chat', False):
+            st.warning("⏳ Please wait while I finish processing your previous message...")
+            st.stop()
         
-        # Display user message
-        with st.chat_message("user", avatar="👤"):
-            st.markdown(prompt)
-            st.caption(f"⏰ {timestamp}")
+        st.session_state.processing_chat = True
         
-        # Get and display assistant response with typewriter effect
-        with st.chat_message("assistant", avatar="🐶"):
-            # Use st.write_stream to display the streaming response
-            response = st.write_stream(get_bot_response(prompt))
+        try:
+            # Create new session if needed
+            if (not st.session_state.get("current_session_uuid") and 
+                st.session_state.get("conversation_manager") and 
+                st.session_state.get("user")):
+                
+                user_id = st.session_state.user["id"]
+                session_uuid = st.session_state.conversation_manager.create_conversation_session(user_id)
+                st.session_state.current_session_uuid = session_uuid
+                
+                # Initialize saved count for new session
+                st.session_state[f"saved_count_{session_uuid}"] = 0
             
-            response_timestamp = datetime.now().strftime("%H:%M")
-            st.caption(f"⏰ {response_timestamp}")
+            # Add user message to chat history
+            timestamp = datetime.now().strftime("%H:%M")
+            user_message = {"role": "user", "content": prompt, "timestamp": timestamp}
+            st.session_state.messages.append(user_message)
             
-            # Add assistant response to chat history
-            assistant_message = {
-                "role": "assistant", 
-                "content": response, 
-                "timestamp": response_timestamp
-            }
-            st.session_state.messages.append(assistant_message)
+            # Save user message to database
+            if (st.session_state.get("conversation_manager") and 
+                st.session_state.get("current_session_uuid") and 
+                st.session_state.get("user")):
+                
+                success = st.session_state.conversation_manager.add_message_to_session(
+                    session_uuid=st.session_state.current_session_uuid,
+                    user_id=st.session_state.user["id"],
+                    content=prompt,
+                    message_type="user"
+                )
+                
+                # Update saved count if successful
+                if success:
+                    session_uuid = st.session_state.current_session_uuid
+                    current_count = st.session_state.get(f"saved_count_{session_uuid}", 0)
+                    st.session_state[f"saved_count_{session_uuid}"] = current_count + 1
+            
+            # Display user message
+            with st.chat_message("user", avatar="👤"):
+                st.markdown(prompt)
+                st.caption(f"⏰ {timestamp}")
+            
+            # Get and display assistant response with typewriter effect
+            with st.chat_message("assistant", avatar="🐶"):
+                # Use st.write_stream to display the streaming response
+                response = st.write_stream(get_bot_response(prompt))
+                
+                response_timestamp = datetime.now().strftime("%H:%M")
+                st.caption(f"⏰ {response_timestamp}")
+                
+                # Add assistant response to chat history
+                assistant_message = {
+                    "role": "assistant", 
+                    "content": response, 
+                    "timestamp": response_timestamp
+                }
+                st.session_state.messages.append(assistant_message)
+                
+                # Save assistant response to database
+                if (st.session_state.get("conversation_manager") and 
+                    st.session_state.get("current_session_uuid") and 
+                    st.session_state.get("user")):
+                    
+                    success = st.session_state.conversation_manager.add_message_to_session(
+                        session_uuid=st.session_state.current_session_uuid,
+                        user_id=st.session_state.user["id"],
+                        content=response,
+                        message_type="assistant",
+                        model_used=st.session_state.get("selected_model", "gemma3:latest")
+                    )
+                    
+                    # Update saved count if successful
+                    if success:
+                        session_uuid = st.session_state.current_session_uuid
+                        current_count = st.session_state.get(f"saved_count_{session_uuid}", 0)
+                        st.session_state[f"saved_count_{session_uuid}"] = current_count + 1
+        
+        except Exception as e:
+            st.error(f"Error processing chat: {e}")
+        finally:
+            # Always reset the processing flag
+            st.session_state.processing_chat = False
     
     st.markdown('</div>', unsafe_allow_html=True)
     
