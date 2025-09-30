@@ -271,6 +271,7 @@ Question: {question}
 
 Instructions:
 
+- Answer directly without introducing yourself (the user already knows who you are)
 - Always answer as if you already know the information (never mention the context or handbook directly)
 - Be enthusiastic and supportive with a bulldog personality
 - Use "Woof!" occasionally but naturally
@@ -308,6 +309,7 @@ Context from knowledge base:
 Current Question: {question}
 
 Instructions:
+- Answer directly without introducing yourself (the user already knows who you are)
 - You are aware of the ongoing conversation context
 - Reference previous topics naturally when relevant
 - Be enthusiastic and supportive with a bulldog personality  
@@ -884,6 +886,7 @@ Helpful Answer:"""
 Question: {question}
 
 Instructions:
+- Answer directly without introducing yourself (the user already knows who you are)
 - Answer this question using your general knowledge
 - Be enthusiastic and supportive with a bulldog personality  
 - Use "Woof!" occasionally but naturally
@@ -932,6 +935,7 @@ Recent conversation context:
 Current Question: {standalone_question}
 
 Instructions:
+- Answer directly without introducing yourself (the user already knows who you are)
 - This is a follow-up question in our ongoing conversation
 - Use your general knowledge to answer, referencing our previous discussion naturally
 - Be enthusiastic and supportive with a bulldog personality  
@@ -1005,6 +1009,7 @@ Context: {context}
 Question: {question}
 
 Instructions:
+- Answer directly without introducing yourself (the user already knows who you are)
 - Always answer as if you already know the information (never mention the context or handbook directly)
 - Be enthusiastic and supportive with a bulldog personality
 - Use "Woof!" occasionally but naturally
@@ -1223,6 +1228,7 @@ Relevant Website Content:
 User's Question: {clean_question}
 
 Instructions:
+- Answer directly without introducing yourself (the user already knows who you are)
 - Answer based on the website content provided above
 - You can reference information from previous parts of our conversation about these websites
 - Be helpful and accurate with the information from the websites
@@ -1302,6 +1308,7 @@ Relevant Website Content:
 User's Follow-up Question: {question}
 
 Instructions:
+- Answer directly without introducing yourself (the user already knows who you are)
 - This is a follow-up question in our ongoing conversation about these websites
 - Answer based on the website content provided above
 - Be helpful and maintain conversation flow
