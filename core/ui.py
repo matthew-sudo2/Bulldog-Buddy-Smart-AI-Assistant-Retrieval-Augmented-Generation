@@ -137,29 +137,47 @@ def create_new_conversation():
     """Create a new conversation session"""
     if not st.session_state.get("conversation_manager") or not st.session_state.get("user"):
         return
-    
+
     user_id = st.session_state.user["id"]
     session_uuid = st.session_state.conversation_manager.create_conversation_session(
         user_id, 
         title="New Conversation"
     )
-    
+
     if session_uuid:
         # Save current conversation if it has messages
         save_current_conversation()
-        
+
+        # Clear RAG system memory for new conversation
+        rag_system = get_rag_system()
+        if rag_system:
+            try:
+                # Clear conversation history
+                if hasattr(rag_system, 'clear_conversation_history'):
+                    rag_system.clear_conversation_history()
+                
+                # Clear web content cache
+                if hasattr(rag_system, 'clear_web_content'):
+                    rag_system.clear_web_content()
+                
+                # Reset web session state
+                rag_system.web_session_active = False
+                rag_system.active_web_content = {}
+                rag_system.current_web_context = []
+                
+            except Exception as e:
+                st.error(f"Error clearing RAG memory for new conversation: {e}")
+
         # Start new conversation
         st.session_state.current_session_uuid = session_uuid
         st.session_state.messages = []
-        
+
         # Initialize saved count for new conversation
         st.session_state[f"saved_count_{session_uuid}"] = 0
-        
+
         # Re-add welcome message
         initialize_session_state()
         st.rerun()
-
-
 def save_current_conversation():
     """Save current conversation to database (only new messages)"""
     if (not st.session_state.get("conversation_manager") or 
@@ -603,12 +621,13 @@ def get_bot_response(user_message):
             user_name = st.session_state.user['first_name']
         
         # Build personalized system prompt
-        base_system_prompt = f"""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant. You have the personality of a helpful bulldog - loyal, protective, energetic, and always eager to help students.
+        base_system_prompt = f"""You are Bulldog Buddy, a Smart Campus Assistant AI with a friendly bulldog personality. You help students with campus life, academics, and general questions.
 
 The user's name is {user_name if user_name else 'Student'}, and you should use their name occasionally to make responses more personal.
 
+IMPORTANT: Do NOT introduce yourself unless specifically asked who you are. Jump straight into helping with the user's question.
+
 Key personality traits:
-- Start responses with "Woof!" occasionally but not every time
 - Be enthusiastic and supportive 
 - Use bulldog/dog-related expressions naturally (like "That's paw-some!" or "I'm doggone excited to help!")
 - Be knowledgeable about campus life, academics, and student concerns
@@ -617,8 +636,9 @@ Key personality traits:
 - Keep responses helpful, informative, and school-appropriate
 - If you don't know something specific about the campus, be honest but still helpful
 - Don't make up answers; if unsure, guide the student to official resources
+- Start responses with "Woof!" occasionally but not every time
 
-Remember: You're a smart, loyal companion who genuinely cares about helping students succeed!"""
+Remember: You're a smart, loyal companion who genuinely cares about helping students succeed! Answer questions directly without unnecessary introductions."""
         
         # Add personality customization
         if personality_modifier:
@@ -987,8 +1007,32 @@ def main():
         
         # Clear chat button
         if st.button("🗑️ Clear Chat History", key="clear", use_container_width=True):
+            # Clear UI chat messages
             st.session_state.messages = []
-            initialize_session_state()  # This will add the welcome message back
+            
+            # Clear RAG system conversation memory and web content
+            rag_system = get_rag_system()
+            if rag_system:
+                try:
+                    # Clear conversation history
+                    if hasattr(rag_system, 'clear_conversation_history'):
+                        rag_system.clear_conversation_history()
+                    
+                    # Clear web content cache
+                    if hasattr(rag_system, 'clear_web_content'):
+                        rag_system.clear_web_content()
+                    
+                    # Reset web session state
+                    rag_system.web_session_active = False
+                    rag_system.active_web_content = {}
+                    rag_system.current_web_context = []
+                    
+                except Exception as e:
+                    st.error(f"Error clearing RAG memory: {e}")
+            
+            # Reset to welcome message
+            initialize_session_state()
+            st.success("🧹 Chat history and memory cleared!")
             st.rerun()
         
         # Clear system cache button (for developers/testing)
