@@ -80,6 +80,88 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def get_available_models_safe():
+    """Safely get available models with fallback"""
+    try:
+        return EnhancedRAGSystem.get_available_models()
+    except Exception as e:
+        logging.error(f"Error loading models from EnhancedRAGSystem: {e}")
+        # Return hardcoded fallback models
+        return [
+            {
+                "id": "gemma3:latest",
+                "name": "Matt 3", 
+                "description": "Matt 3 - Balanced performance, good for general tasks",
+                "temperature": 0.3,
+                "icon": "fa-brain"
+            },
+            {
+                "id": "llama3.2:latest",
+                "name": "Matt 3.2",
+                "description": "Matt 3.2 - Excellent reasoning and comprehensive responses", 
+                "temperature": 0.2,
+                "icon": "fa-brain"
+            }
+        ]
+
+@st.cache_resource
+def create_rag_system(model_name: str, handbook_path: str):
+    """Create and cache RAG system instance"""
+    try:
+        rag_system = EnhancedRAGSystem(handbook_path, model_name=model_name)
+        
+        # Initialize the database if not already done
+        if not rag_system.is_initialized:
+            success = rag_system.initialize_database()
+            if not success:
+                raise Exception("Failed to initialize RAG database")
+        
+        return rag_system
+    except Exception as e:
+        logging.error(f"Failed to create RAG system: {e}")
+        return None
+
+def get_rag_system():
+    """Get the single RAG system instance, creating if needed"""
+    try:
+        # Get current model selection
+        current_model = st.session_state.get("selected_model", "gemma3:latest")
+        
+        # Get handbook path
+        handbook_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "student-handbook-structured.csv")
+        
+        # Create or get cached RAG system
+        rag_system = create_rag_system(current_model, handbook_path)
+        
+        if rag_system is None:
+            return None
+            
+        # Apply current settings
+        if hasattr(rag_system, 'set_university_mode'):
+            university_mode = st.session_state.get("university_mode", True)
+            rag_system.set_university_mode(university_mode)
+        
+        return rag_system
+        
+    except Exception as e:
+        logging.error(f"Error getting RAG system: {e}")
+        return None
+
+def clear_rag_cache():
+    """Clear RAG system cache to force recreation with new model"""
+    try:
+        # Clear the cached RAG system
+        create_rag_system.clear()
+        
+        # Also clear any session state references
+        if 'rag_system_instance' in st.session_state:
+            del st.session_state.rag_system_instance
+        
+        return True
+    except Exception as e:
+        logging.error(f"Error clearing RAG cache: {e}")
+        return False
+
 def initialize_session_state():
     """Initialize session state variables for chat history and conversation management"""
     if "messages" not in st.session_state:
@@ -161,9 +243,12 @@ def create_new_conversation():
                     rag_system.clear_web_content()
                 
                 # Reset web session state
-                rag_system.web_session_active = False
-                rag_system.active_web_content = {}
-                rag_system.current_web_context = []
+                if hasattr(rag_system, 'web_session_active'):
+                    rag_system.web_session_active = False
+                if hasattr(rag_system, 'active_web_content'):
+                    rag_system.active_web_content = {}
+                if hasattr(rag_system, 'current_web_context'):
+                    rag_system.current_web_context = []
                 
             except Exception as e:
                 st.error(f"Error clearing RAG memory for new conversation: {e}")
@@ -441,86 +526,11 @@ def show_conversation_item(conv: dict, is_pinned: bool = False):
         st.warning("⚠️ Click delete again to confirm")
 
 
-def get_rag_system_with_model(model_name: str = "gemma3:latest"):
-    """Get RAG system with specific model, preserving web session state"""
-    try:
-        handbook_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "student-handbook-structured.csv")
-        
-        # Check if we have a cached system with the same model
-        if 'rag_system_instance' in st.session_state:
-            cached_system = st.session_state.rag_system_instance
-            if cached_system and hasattr(cached_system, 'model_name') and cached_system.model_name == model_name:
-                return cached_system
-        
-        # Create new system but preserve web session state from old one
-        old_web_state = None
-        old_web_content = None
-        if 'rag_system_instance' in st.session_state:
-            old_system = st.session_state.rag_system_instance
-            if old_system:
-                old_web_state = getattr(old_system, 'web_session_active', False)
-                old_web_content = getattr(old_system, 'active_web_content', {})
-        
-        # Create new RAG system
-        rag_system = EnhancedRAGSystem(handbook_path, model_name=model_name)
-        
-        # Restore web session state if it existed
-        if old_web_state and old_web_content:
-            rag_system.web_session_active = old_web_state
-            rag_system.active_web_content = old_web_content
-        
-        # Cache the new system
-        st.session_state.rag_system_instance = rag_system
-        
-        return rag_system
-    except Exception as e:
-        st.error(f"Failed to initialize RAG system: {e}")
-        return None
-
-def get_rag_system():
-    """Get or initialize RAG system (cached)"""
-    try:
-        handbook_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "student-handbook-structured.csv")
-        
-        # Check if we have a cached system with missing methods
-        if 'rag_system_instance' in st.session_state:
-            cached_system = st.session_state.rag_system_instance
-            if cached_system and not hasattr(cached_system, 'set_university_mode'):
-                # Clear the old cached system
-                del st.session_state.rag_system_instance
-                st.cache_resource.clear()
-        
-        # Get or create RAG system
-        if 'rag_system_instance' not in st.session_state:
-            rag_system = EnhancedRAGSystem(handbook_path)
-            
-            # Initialize the database if not already done
-            if not rag_system.is_initialized:
-                success = rag_system.initialize_database()
-                if not success:
-                    st.error("Failed to initialize database")
-                    return None
-            
-            # Verify that the university mode methods exist
-            if not hasattr(rag_system, 'set_university_mode'):
-                st.error("⚠️ RAG system missing university mode methods. Please refresh the page.")
-                return None
-            
-            st.session_state.rag_system_instance = rag_system
-        
-        return st.session_state.rag_system_instance
-    except Exception as e:
-        st.error(f"Failed to initialize RAG system: {e}")
-        return None
-
 def get_bot_response(user_message):
     """
     Enhanced bot response with web content support and personalization
     """
     try:
-        # Get the selected model from session state
-        selected_model = st.session_state.get("selected_model", "gemma3:latest")
-        
         # Get user personalization settings
         user_settings = get_current_user_settings()
         personality_modifier = get_personality_prompt_modifier(user_settings)
@@ -529,13 +539,14 @@ def get_bot_response(user_message):
         if any(keyword in user_message.lower() for keyword in ['http', 'www.', '.com', '.org', '.net', '.edu']):
             st.info("🌐 I detected a website link! Let me analyze that content for you...")
         
-        # Get RAG system with selected model (create fresh instance to use new model)
-        rag_system = get_rag_system_with_model(selected_model)
+        # Get the single RAG system instance
+        rag_system = get_rag_system()
         
         # Set university mode based on session state
         if rag_system:
             university_mode = st.session_state.get("university_mode", True)
-            rag_system.set_university_mode(university_mode)
+            if hasattr(rag_system, 'set_university_mode'):
+                rag_system.set_university_mode(university_mode)
             
             # Apply personality settings to RAG system if possible
             if hasattr(rag_system, 'set_personality_settings'):
@@ -833,7 +844,7 @@ def main():
         st.markdown("### ℹ️ About")
         # Get current model display name
         current_model_id = st.session_state.get("selected_model", "gemma3:latest")
-        available_models = EnhancedRAGSystem.get_available_models()
+        available_models = get_available_models_safe()
         current_model_display = "Matt 3"  # Default fallback
         for model in available_models:
             if model["id"] == current_model_id:
@@ -870,8 +881,9 @@ def main():
         # Model Selection
         st.markdown("### 🤖 AI Model Selection")
         
-        # Get available models
-        available_models = EnhancedRAGSystem.get_available_models()
+        # Get available models safely
+        available_models = get_available_models_safe()
+        
         model_options = {}
         for model_info in available_models:
             model_options[f"{model_info['name']} ({model_info['id']})"] = model_info['id']
@@ -897,12 +909,12 @@ def main():
         # Handle model change
         new_model_key = model_options[new_model_selection]
         if new_model_key != st.session_state.selected_model:
+            # Store old model for logging
+            old_model = st.session_state.selected_model
             st.session_state.selected_model = new_model_key
             
-            # Clear cache and reinitialize system with new model
-            st.cache_resource.clear()
-            if "rag_system" in st.session_state:
-                del st.session_state.rag_system
+            # Clear RAG cache to force recreation with new model
+            success = clear_rag_cache()
             
             # Find the model name for success message
             model_name = "Unknown Model"
@@ -911,8 +923,12 @@ def main():
                     model_name = model_info['name']
                     break
             
-            st.success(f"✅ Switched to {model_name}!")
-            st.info("💡 The system will use the new model for your next question.")
+            if success:
+                st.success(f"✅ Switched to {model_name}!")
+                st.info("💡 The system will use the new model for your next question.")
+            else:
+                st.warning(f"⚠️ Switched to {model_name} but cache clearing had issues.")
+            
             st.rerun()
         
         # Show current model info
@@ -949,11 +965,12 @@ def main():
         # Debug section (for development)
         with st.expander("🔧 Debug Tools", expanded=False):
             if st.button("🗑️ Clear System Cache", help="Clear cached RAG system"):
-                # Clear both caches
-                st.cache_resource.clear()
-                if 'rag_system_instance' in st.session_state:
-                    del st.session_state.rag_system_instance
-                st.success("Cache cleared! The system will reinitialize.")
+                # Clear RAG cache using new function
+                success = clear_rag_cache()
+                if success:
+                    st.success("Cache cleared! The system will reinitialize.")
+                else:
+                    st.error("Error clearing cache.")
                 st.rerun()
             
             # Show current RAG system methods
@@ -974,7 +991,7 @@ def main():
         st.divider()
         
         # Web Session Info
-        rag_system = get_rag_system_with_model(st.session_state.get("selected_model", "gemma3:latest"))
+        rag_system = get_rag_system()
         if rag_system and rag_system.web_session_active:
             st.markdown("### 🌐 Active Web Session")
             web_info = rag_system.get_web_session_info()
@@ -1023,9 +1040,12 @@ def main():
                         rag_system.clear_web_content()
                     
                     # Reset web session state
-                    rag_system.web_session_active = False
-                    rag_system.active_web_content = {}
-                    rag_system.current_web_context = []
+                    if hasattr(rag_system, 'web_session_active'):
+                        rag_system.web_session_active = False
+                    if hasattr(rag_system, 'active_web_content'):
+                        rag_system.active_web_content = {}
+                    if hasattr(rag_system, 'current_web_context'):
+                        rag_system.current_web_context = []
                     
                 except Exception as e:
                     st.error(f"Error clearing RAG memory: {e}")
@@ -1037,7 +1057,8 @@ def main():
         
         # Clear system cache button (for developers/testing)
         if st.button("🔄 Refresh System", key="refresh_system", use_container_width=True):
-            st.cache_resource.clear()
+            # Clear RAG cache and session state
+            clear_rag_cache()
             st.session_state.clear()
             st.success("System refreshed! Page will reload...")
             st.rerun()
