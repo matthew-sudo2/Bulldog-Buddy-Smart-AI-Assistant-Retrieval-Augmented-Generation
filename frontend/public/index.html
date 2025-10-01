@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Bulldog Buddy - Your Smart Campus Assistant</title>
+
+        <!-- Stylesheets -->
+        <link rel="stylesheet" href="/src/assets/styles/index.css">
+        <link rel="icon" href="/favicon.ico" type="image/x-icon">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        
+        <!-- Google Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter+Tight:ital,wght@0,100..900;1,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+    </head>
+    <body>
+        <header>
+            <div class="logo-container">
+                <img src="/src/assets/images/bulldog-logo.png" class="logo-image" alt="Bulldog Buddy Logo">
+                <span class="logo-text">
+                    <span class="logo-bulldog">Bulldog</span> <span class="logo-buddy">Buddy</span>
+                </span>
+            </div>
+            <button class="login-btn" id="login-btn">
+                Log in
+            </button>
+        </header>
+
+        <main>
+            <section class="hero">
+                <img src="/src/assets/images/element1.png" class="left-illustration" alt="Boy illustration">
+
+                <h1>Introducing Bulldog Buddy</h1>
+                <p>Your Smart Campus Assistant</p>
+                <div class="hero-buttons">
+                    <button class="tryNow-button" id="tryNow-btn">
+                        Try Now
+                        <img src="/src/assets/images/arrow-up.png" class="arrow-up" alt="Arrow">
+                    </button>
+                    <button class="services-button" id="services-btn">
+                        Services
+                        <img src="/src/assets/images/arrow-up.png" class="arrow-up" alt="Arrow">
+                    </button>
+                </div>
+
+                <img src="/src/assets/images/element2.png" class="right-illustration" alt="Girl illustration">
+            </section>
+
+            <section class="services-section" id="services">
+                <div class="services-container">
+                    <!-- Chat Service Box -->
+                    <div class="service-box fade-in">
+                        <img src="/src/assets/images/chat-image.png" class="service-image" alt="Chat Service">
+                        <h3>Chat</h3>
+                        <p>Ask anything, anytime—Bulldog Buddy is here to answer your questions in seconds.</p>
+                    </div>
+
+                    <!-- Guide Service Box -->
+                    <div class="service-box fade-in">
+                        <img src="/src/assets/images/guide-image.png" class="guide-image" alt="Guide Service">
+                        <h3>Guide</h3>
+                        <p>Get helpful tips, resources, and directions to make your campus life easier.</p>
+                    </div>
+
+                    <!-- Connect Service Box -->
+                    <div class="service-box fade-in">
+                        <img src="/src/assets/images/connect-image.png" class="connect-image" alt="Connect Service">
+                        <h3>Connect</h3>
+                        <p>Stay in touch with your student community through a simple, friendly chatbot experience.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="site-footer">
+            <div class="footer-content">
+                <!-- First Column: About the Company -->
+                <div class="footer-column">
+                    <h4>About the Company</h4>
+                    <ul>
+                        <li><a href="#">Bulldog Buddy</a></li>
+                        <li><a href="#">Mission and Vision</a></li>
+                        <li><a href="#">Team</a></li>
+                        <li><a href="#">Privacy and Policy</a></li>
+                        <li><a href="#">Terms of Service</a></li>
+                    </ul>
+                </div>
+
+                <!-- Second Column: Explore -->
+                <div class="footer-column">
+                    <h4>Explore</h4>
+                    <ul>
+                        <li><a href="#">FAQs</a></li>
+                        <li><a href="#">Help Center</a></li>
+                        <li><a href="#">Tutorials and Guides</a></li>
+                        <li><a href="#">Template Gallery</a></li>
+                        <li><a href="#">Collaboration Features</a></li>
+                        <li><a href="#">Pricing Plans</a></li>
+                    </ul>
+                </div>
+
+                <!-- Third Column: Community -->
+                <div class="footer-column">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="#">User Showcase</a></li>
+                        <li><a href="#">Forums</a></li>
+                        <li><a href="#">Communities</a></li>
+                        <li><a href="#">Events</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Social Media and Copyright Section -->
+            <div class="footer-bottom">
+                <div class="social-icons">
+                    <a href="https://x.com/gobbcuh" target="_blank" class="social-link">
+                        <i class="fa-brands fa-twitter"></i>
+                    </a>
+                    <a href="https://www.instagram.com/j.badobee/" target="_blank" class="social-link">
+                        <i class="fa-brands fa-instagram"></i>
+                    </a>
+                    <a href="https://github.com/gobbcuh" target="_blank" class="social-link">
+                        <i class="fa-brands fa-github"></i>
+                    </a>
+                    <a href="https://www.linkedin.com/in/jasmin-lorino-314916313/" target="_blank" class="social-link">
+                        <i class="fa-brands fa-linkedin"></i>
+                    </a>
+                </div>
+                <div class="copyright">
+                    <p>© 2025 Bulldog Buddy</p>
+                    <p>Developed by Array Potters. All rights reserved.</p>
+                </div>
+            </div>
+        </footer>
+
+        <script>
+            document.getElementById('login-btn').addEventListener('click', function() {
+                window.location.href = '/login';
+            });
+
+            document.getElementById('tryNow-btn').addEventListener('click', function() {
+                window.location.href = '/login';
+            });
+
+            // scrolls to services section
+            document.getElementById('services-btn').addEventListener('click', function(e) {
+                e.preventDefault();
+                // First reset all service boxes to hidden state
+                document.querySelectorAll('.fade-in').forEach(box => {
+                    box.classList.remove('appear');
+                });
+                
+                // Then scroll to services
+                document.getElementById('services').scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+                
+                // After scrolling, trigger the animation
+                setTimeout(() => {
+                    animateServices();
+                }, 800); // Delay to allow scrolling to complete
+            });
+
+            document.querySelector('.logo-container').addEventListener('click', function() {
+                window.location.reload();
+            });
+            
+            document.querySelector('.logo-container').style.cursor = 'pointer';
+
+            // Track scroll direction
+            let lastScrollTop = 0;
+            let isScrollingDown = true;
+            
+            // Fade-in animation for service boxes
+            const fadeElements = document.querySelectorAll('.fade-in');
+            
+            const fadeInOptions = {
+                threshold: 0.3,
+                rootMargin: "0px 0px -100px 0px"
+            };
+            
+            const fadeInObserver = new IntersectionObserver(function(entries, observer) {
+                entries.forEach(entry => {
+                    // Always trigger animation when element is in view AND we're scrolling down
+                    if (entry.isIntersecting && isScrollingDown) {
+                        entry.target.classList.add('appear');
+                    } 
+                    // Only remove the class if we're scrolling up AND element is not in view
+                    else if (!isScrollingDown && !entry.isIntersecting) {
+                        entry.target.classList.remove('appear');
+                    }
+                });
+            }, fadeInOptions);
+            
+            fadeElements.forEach(element => {
+                fadeInObserver.observe(element);
+            });
+            
+            // Function to manually trigger service animations
+            function animateServices() {
+                const services = document.querySelectorAll('.fade-in');
+                services.forEach((service, index) => {
+                    setTimeout(() => {
+                        service.classList.add('appear');
+                    }, 200 * index); // Stagger the animation
+                });
+            }
+            
+            // Detect scroll direction
+            window.addEventListener('scroll', function() {
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                isScrollingDown = scrollTop > lastScrollTop;
+                lastScrollTop = scrollTop;
+            }, { passive: true });
+
+            // Add scrolly-telling effects to header, hero, and footer
+            document.addEventListener('DOMContentLoaded', function() {
+                // Add fade-in classes to ALL header elements
+                const header = document.querySelector('header');
+                if (header) {
+                    header.classList.add('fade-in');
+                    
+                    // Add fade-in to individual header elements
+                    const logoContainer = document.querySelector('.logo-container');
+                    const logoImage = document.querySelector('.logo-image');
+                    const logoText = document.querySelector('.logo-text');
+                    const loginBtn = document.querySelector('.login-btn');
+                    
+                    if (logoContainer) logoContainer.classList.add('fade-in');
+                    if (logoImage) logoImage.classList.add('fade-in');
+                    if (logoText) logoText.classList.add('fade-in');
+                    if (loginBtn) loginBtn.classList.add('fade-in');
+                }
+                
+                // Add fade-in to ALL hero elements
+                const heroTitle = document.querySelector('.hero h1');
+                const heroText = document.querySelector('.hero p');
+                const heroButtons = document.querySelector('.hero-buttons');
+                const heroIllustrations = document.querySelectorAll('.left-illustration, .right-illustration');
+                
+                if (heroTitle) heroTitle.classList.add('fade-in');
+                if (heroText) heroText.classList.add('fade-in');
+                if (heroButtons) heroButtons.classList.add('fade-in');
+                heroIllustrations.forEach(illustration => {
+                    illustration.classList.add('fade-in');
+                });
+                
+                // Add fade-in to footer elements
+                const footerColumns = document.querySelectorAll('.footer-column');
+                const footerBottom = document.querySelector('.footer-bottom');
+                
+                footerColumns.forEach(column => {
+                    column.classList.add('fade-in');
+                });
+                if (footerBottom) footerBottom.classList.add('fade-in');
+                
+                // Create observer for header elements
+                const headerOptions = {
+                    threshold: 0.1,
+                    rootMargin: "0px 0px -50px 0px"
+                };
+                
+                const headerObserver = new IntersectionObserver(function(entries) {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add('appear');
+                        } else if (!isScrollingDown && window.scrollY > 100) {
+                            entry.target.classList.remove('appear');
+                        }
+                    });
+                }, headerOptions);
+                
+                // Observe all header elements
+                if (header) headerObserver.observe(header);
+                const headerElements = document.querySelectorAll('header .fade-in');
+                headerElements.forEach(element => {
+                    headerObserver.observe(element);
+                });
+                
+                // Create observer for hero elements - UPDATED FOR ANY SCROLL DIRECTION
+                const heroOptions = {
+                    threshold: 0.2,
+                    rootMargin: "0px 0px -50px 0px"
+                };
+                
+                const heroObserver = new IntersectionObserver(function(entries) {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            // Stagger the hero animations
+                            if (entry.target === heroTitle) {
+                                entry.target.classList.add('appear');
+                            } else if (entry.target === heroText) {
+                                setTimeout(() => {
+                                    entry.target.classList.add('appear');
+                                }, 200);
+                            } else if (entry.target === heroButtons) {
+                                setTimeout(() => {
+                                    entry.target.classList.add('appear');
+                                }, 400);
+                            } else if (entry.target.classList.contains('left-illustration')) {
+                                setTimeout(() => {
+                                    entry.target.classList.add('appear');
+                                }, 300);
+                            } else if (entry.target.classList.contains('right-illustration')) {
+                                setTimeout(() => {
+                                    entry.target.classList.add('appear');
+                                }, 500);
+                            } else {
+                                entry.target.classList.add('appear');
+                            }
+                        } else if (!entry.isIntersecting) {
+                            entry.target.classList.remove('appear');
+                        }
+                    });
+                }, heroOptions);
+                
+                // Observe hero elements
+                if (heroTitle) heroObserver.observe(heroTitle);
+                if (heroText) heroObserver.observe(heroText);
+                if (heroButtons) heroObserver.observe(heroButtons);
+                heroIllustrations.forEach(illustration => {
+                    heroObserver.observe(illustration);
+                });
+                
+                // Create observer for footer elements - SCROLL DOWN ONLY
+                const footerOptions = {
+                    threshold: 0.2,
+                    rootMargin: "0px 0px -50px 0px"
+                };
+                
+                const footerObserver = new IntersectionObserver(function(entries) {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting && isScrollingDown) {
+                            entry.target.classList.add('appear');
+                        } else if (!isScrollingDown && !entry.isIntersecting) {
+                            entry.target.classList.remove('appear');
+                        }
+                    });
+                }, footerOptions);
+                
+                // Observe footer elements
+                footerColumns.forEach(column => {
+                    footerObserver.observe(column);
+                });
+                if (footerBottom) footerObserver.observe(footerBottom);
+                
+                // Check if elements are already in view on page load and animate them
+                setTimeout(function() {
+                    // Check header elements
+                    if (header && isElementInViewport(header)) {
+                        header.classList.add('appear');
+                    }
+                    headerElements.forEach(element => {
+                        if (isElementInViewport(element)) {
+                            element.classList.add('appear');
+                        }
+                    });
+                    
+                    // Check hero elements - UPDATED FOR ANY SCROLL DIRECTION
+                    if (heroTitle && isElementInViewport(heroTitle)) {
+                        heroTitle.classList.add('appear');
+                    }
+                    if (heroText && isElementInViewport(heroText)) {
+                        setTimeout(() => {
+                            heroText.classList.add('appear');
+                        }, 200);
+                    }
+                    if (heroButtons && isElementInViewport(heroButtons)) {
+                        setTimeout(() => {
+                            heroButtons.classList.add('appear');
+                        }, 400);
+                    }
+                    heroIllustrations.forEach(illustration => {
+                        if (isElementInViewport(illustration)) {
+                            if (illustration.classList.contains('left-illustration')) {
+                                setTimeout(() => {
+                                    illustration.classList.add('appear');
+                                }, 300);
+                            } else if (illustration.classList.contains('right-illustration')) {
+                                setTimeout(() => {
+                                    illustration.classList.add('appear');
+                                }, 500);
+                            } else {
+                                illustration.classList.add('appear');
+                            }
+                        }
+                    });
+                    
+                    // Check footer elements - SCROLL DOWN ONLY
+                    footerColumns.forEach(column => {
+                        if (isElementInViewport(column) && isScrollingDown) {
+                            column.classList.add('appear');
+                        }
+                    });
+                    if (footerBottom && isElementInViewport(footerBottom) && isScrollingDown) {
+                        footerBottom.classList.add('appear');
+                    }
+                }, 100);
+            });
+            
+            // Helper function to check if element is in viewport
+            function isElementInViewport(el) {
+                const rect = el.getBoundingClientRect();
+                return (
+                    rect.top >= 0 &&
+                    rect.left >= 0 &&
+                    rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+                    rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+                );
+            }
+
+            // Navigation handlers
+            document.getElementById('login-btn').addEventListener('click', function() {
+                window.location.href = '/login';
+            });
+
+            document.getElementById('tryNow-btn').addEventListener('click', function() {
+                window.location.href = '/login';
+            });
+
+            document.querySelector('.logo-container').addEventListener('click', function() {
+                window.location.href = '/';
+            });
+        </script>
+    </body>
+</html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulldog Buddy - Smart AI Assistant</title>
+    <link rel="stylesheet" href="/src/assets/styles/chat-redesigned.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Left Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <!-- Logo & Title -->
+        <div class="sidebar-header">
+            <div class="logo-container">
+                <div class="logo-icon">
+                    <img src="/src/assets/images/bulldog-logo.png" alt="Bulldog Buddy">
+                </div>
+                <div class="logo-text">
+                    <h1><span class="logo-bulldog">Bulldog</span> <span class="logo-buddy">Buddy</span></h1>
+                    <p>Smart AI Assistant</p>
+                </div>
+            </div>
+            <button class="sidebar-toggle" id="sidebarToggle">
+                <span class="hamburger"></span>
+            </button>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="nav-section">
+            <h3>Navigation</h3>
+            <a href="#" class="nav-item active" id="navHome">
+                <i class="fas fa-home nav-icon"></i>
+                <span class="nav-label">Home</span>
+            </a>
+            <button class="nav-item" id="navNewChat">
+                <i class="fas fa-plus nav-icon"></i>
+                <span class="nav-label">New Chat</span>
+            </button>
+            <button class="nav-item" id="navSettings">
+                <i class="fas fa-cog nav-icon"></i>
+                <span class="nav-label">Settings</span>
+            </button>
+        </nav>
+
+        <!-- New Chat Button (Prominent) -->
+        <div class="new-chat-section">
+            <button class="btn-new-chat" id="btnNewChat">
+                <i class="fas fa-plus btn-icon"></i>
+                <span class="btn-label">New Chat</span>
+            </button>
+        </div>
+
+        <!-- Recent Chats -->
+        <div class="recent-chats-section">
+            <div class="section-header">
+                <h3>Recent Chats</h3>
+                <span class="chat-count" id="chatCount">0</span>
+            </div>
+            <div class="chat-list" id="chatList">
+                <!-- Chats will be dynamically loaded -->
+            </div>
+        </div>
+
+        <!-- Features Status -->
+        <div class="features-section">
+            <h3>Features</h3>
+            <div class="feature-item">
+                <div class="feature-info">
+                    <i class="fas fa-book feature-icon"></i>
+                    <span class="feature-label">RAG Enabled</span>
+                </div>
+                <span class="feature-status status-on">ON</span>
+            </div>
+            <div class="feature-item">
+                <div class="feature-info">
+                    <i class="fas fa-bullseye feature-icon"></i>
+                    <span class="feature-label">Smart Context</span>
+                </div>
+                <span class="feature-status status-active">Active</span>
+            </div>
+            <div class="feature-item">
+                <div class="feature-info">
+                    <i class="fas fa-file-alt feature-icon"></i>
+                    <span class="feature-label">Document Q&A</span>
+                </div>
+                <span class="feature-status status-ready">Ready</span>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="sidebar-actions">
+            <button class="action-btn" id="btnExport">
+                <i class="fas fa-download action-icon"></i>
+                <span class="action-label">Export</span>
+            </button>
+            <button class="action-btn" id="btnImport">
+                <i class="fas fa-upload action-icon"></i>
+                <span class="action-label">Import</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <main class="main-content">
+        <!-- Top Header -->
+        <header class="chat-header">
+            <div class="header-left">
+                <div class="assistant-info">
+                    <div class="assistant-icon">
+                        <img src="/src/assets/images/bulldog-logo.png" alt="Bulldog Buddy">
+                    </div>
+                    <div class="assistant-details">
+                        <h2><span class="logo-bulldog">Bulldog</span> <span class="logo-buddy">Buddy</span></h2>
+                        <p>Smart AI Assistant</p>
+                    </div>
+                </div>
+            </div>
+            <div class="header-right">
+                <!-- University Mode Toggle -->
+                <div class="mode-toggle-container">
+                    <span class="mode-label">University Mode</span>
+                    <button class="mode-toggle" id="modeToggle">
+                        <span class="toggle-state">ON</span>
+                    </button>
+                </div>
+
+                <!-- Model Selector -->
+                <div class="model-selector">
+                    <label for="modelSelect" class="model-label">
+                        <i class="fas fa-robot"></i> Loading...
+                    </label>
+                    <select id="modelSelect" class="model-dropdown">
+                        <!-- Models will be loaded dynamically -->
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <!-- Chat Messages Area -->
+        <div class="chat-container" id="chatContainer">
+            <div class="messages-wrapper" id="messagesWrapper">
+                <!-- Welcome message will be added here -->
+            </div>
+        </div>
+
+        <!-- Message Input Area -->
+        <div class="input-container">
+            <div class="input-wrapper">
+                <div class="mode-indicator" id="modeIndicator">
+                    <i class="fas fa-graduation-cap mode-icon"></i>
+                    <span class="mode-text">University Mode: Using student handbook</span>
+                </div>
+                <div class="input-row">
+                    <textarea 
+                        id="messageInput" 
+                        class="message-input" 
+                        placeholder="Ask me anything about university policies or general knowledge..."
+                        rows="1"
+                        maxlength="500"
+                    ></textarea>
+                    <div class="input-actions">
+                        <span class="char-counter" id="charCounterText">
+                            <span id="charCount">0</span>/500
+                        </span>
+                        <button class="btn-send" id="btnSend" disabled title="Send message">
+                            <img src="/src/assets/images/paw-send.png" alt="Send" class="paw-icon">
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-cog"></i> Settings</h2>
+                <button class="btn-close" id="btnCloseSettings">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Theme Selection -->
+                <div class="settings-section">
+                    <h3><i class="fas fa-palette"></i> Theme</h3>
+                    <div class="theme-grid">
+                        <button class="theme-option active" data-theme="university">
+                            <span class="theme-color" style="background: linear-gradient(135deg, #2E4057, #048ABF);"></span>
+                            <span class="theme-name">University Blue</span>
+                        </button>
+                        <button class="theme-option" data-theme="professional">
+                            <span class="theme-color" style="background: linear-gradient(135deg, #1a1a2e, #16213e);"></span>
+                            <span class="theme-name">Professional</span>
+                        </button>
+                        <button class="theme-option" data-theme="dark">
+                            <span class="theme-color" style="background: linear-gradient(135deg, #0f0f0f, #2d2d2d);"></span>
+                            <span class="theme-name">Dark</span>
+                        </button>
+                        <button class="theme-option" data-theme="light">
+                            <span class="theme-color" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef);"></span>
+                            <span class="theme-name">Light</span>
+                        </button>
+                        <button class="theme-option" data-theme="sunset">
+                            <span class="theme-color" style="background: linear-gradient(135deg, #ff6b6b, #feca57);"></span>
+                            <span class="theme-name">Sunset</span>
+                        </button>
+                        <button class="theme-option" data-theme="ocean">
+                            <span class="theme-color" style="background: linear-gradient(135deg, #0077b6, #00b4d8);"></span>
+                            <span class="theme-name">Ocean</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Personality -->
+                <div class="settings-section">
+                    <h3><i class="fas fa-theater-masks"></i> Personality</h3>
+                    <select id="personalitySelect" class="setting-select">
+                        <option value="friendly">Friendly & Helpful</option>
+                        <option value="professional">Professional</option>
+                        <option value="casual">Casual & Fun</option>
+                        <option value="academic">Academic & Formal</option>
+                    </select>
+                </div>
+
+                <!-- AI Models -->
+                <div class="settings-section">
+                    <h3><i class="fas fa-brain"></i> AI Models</h3>
+                    <div class="models-info" id="modelsInfo">
+                        <p class="loading-text">Loading available models...</p>
+                    </div>
+                </div>
+
+                <!-- Response Length -->
+                <div class="settings-section">
+                    <h3><i class="fas fa-ruler"></i> Response Length</h3>
+                    <select id="responseLengthSelect" class="setting-select">
+                        <option value="concise">Concise</option>
+                        <option value="balanced">Balanced</option>
+                        <option value="detailed">Detailed</option>
+                    </select>
+                </div>
+
+                <!-- Confidence Display -->
+                <div class="settings-section">
+                    <h3><i class="fas fa-chart-bar"></i> Display Options</h3>
+                    <label class="setting-checkbox">
+                        <input type="checkbox" id="showConfidence" checked>
+                        <span>Show confidence scores</span>
+                    </label>
+                    <label class="setting-checkbox">
+                        <input type="checkbox" id="showSources" checked>
+                        <span>Show sources</span>
+                    </label>
+                    <label class="setting-checkbox">
+                        <input type="checkbox" id="showTimestamps" checked>
+                        <span>Show timestamps</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" id="btnResetSettings">Reset to Defaults</button>
+                <button class="btn-primary" id="btnSaveSettings">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/src/assets/js/chat-redesigned.js"></script>
+</body>
+</html>
