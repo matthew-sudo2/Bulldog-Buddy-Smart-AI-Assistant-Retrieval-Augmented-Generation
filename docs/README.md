@@ -7,7 +7,7 @@ An intelligent conversational AI system designed specifically for National Unive
 ### **Dual-Model Architecture**
 - **General Knowledge Model**: Handles broad academic topics (math, science, technology, etc.)
 - **University-Specific Model**: Processes handbook-based queries with RAG technology
-- **User-Selectable Models**: Choose between Gemma 3 Latest and Llama 3.2 Latest
+- **User-Selectable Models**: Choose between Matt 3 and Matt 3.2
 
 ### **Comprehensive Knowledge Base**
 - **Student Handbook Integration**: Complete 34-section university handbook with structured CSV data

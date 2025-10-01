@@ -38,16 +38,32 @@ class EnhancedRAGSystem:
     # Available models configuration
     AVAILABLE_MODELS = {
         "gemma3:latest": {
-            "name": "Gemma 3",
-            "description": "Google's Gemma 3 - Balanced performance, good for general tasks",
-            "temperature": 0.3
+            "name": "Matt 3",
+            "description": "Matt 3 - Balanced performance, good for general tasks",
+            "temperature": 0.3,
+            "icon": "fa-brain"
         },
         "llama3.2:latest": {
-            "name": "Llama 3.2", 
-            "description": "Meta's Llama 3.2 - Excellent reasoning and comprehensive responses",
-            "temperature": 0.2
+            "name": "Matt 3.2", 
+            "description": "Matt 3.2 - Excellent reasoning and comprehensive responses",
+            "temperature": 0.2,
+            "icon": "fa-brain"
         }
     }
+    
+    @classmethod
+    def get_available_models(cls) -> List[Dict[str, Any]]:
+        """Return list of available models with their metadata"""
+        return [
+            {
+                "id": model_id,
+                "name": config["name"],
+                "description": config["description"],
+                "temperature": config.get("temperature", 0.3),
+                "icon": config.get("icon", "fa-robot")
+            }
+            for model_id, config in cls.AVAILABLE_MODELS.items()
+        ]
     
     def __init__(self, handbook_path: str, db_path: str = None, model_name: str = "gemma3:latest"):
         self.handbook_path = handbook_path
@@ -378,11 +394,6 @@ Bulldog Buddy's Conversational Answer:""",
         except Exception as e:
             self.logger.error(f"Failed to switch model: {e}")
             return False
-    
-    @classmethod
-    def get_available_models(cls) -> Dict[str, Dict[str, str]]:
-        """Get list of available models"""
-        return cls.AVAILABLE_MODELS
     
     def set_user_context(self, user_id: int):
         """Set the current user for context management"""

@@ -813,7 +813,7 @@ def main():
         st.markdown("### ℹ️ About")
         current_model_display = EnhancedRAGSystem.get_available_models().get(
             st.session_state.get("selected_model", "gemma3:latest"), 
-            {"name": "Gemma 3"}
+            {"name": "Matt 3"}
         )["name"]
         
         st.markdown(f"""
@@ -823,7 +823,7 @@ def main():
         Just paste any website URL in your message and I'll analyze it for you!
         
         **Current Model:** {current_model_display}  
-        **Embeddings:** EmbeddingGemma  
+        **Embeddings:** Gemma Embeddings  
         **Vector DB:** ChromaDB + Web Content Analysis  
         **Knowledge:** University Handbook + Live Web Content  
         **Memory:** Remembers last 10 conversations for context
