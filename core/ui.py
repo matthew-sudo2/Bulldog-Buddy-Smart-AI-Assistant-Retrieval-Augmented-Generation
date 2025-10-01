@@ -811,10 +811,14 @@ def main():
         
         # Additional info
         st.markdown("### ℹ️ About")
-        current_model_display = EnhancedRAGSystem.get_available_models().get(
-            st.session_state.get("selected_model", "gemma3:latest"), 
-            {"name": "Matt 3"}
-        )["name"]
+        # Get current model display name
+        current_model_id = st.session_state.get("selected_model", "gemma3:latest")
+        available_models = EnhancedRAGSystem.get_available_models()
+        current_model_display = "Matt 3"  # Default fallback
+        for model in available_models:
+            if model["id"] == current_model_id:
+                current_model_display = model["name"]
+                break
         
         st.markdown(f"""
         **Bulldog Buddy** is your AI-powered 24/7 campus companion! 🤖🐶
@@ -849,8 +853,8 @@ def main():
         # Get available models
         available_models = EnhancedRAGSystem.get_available_models()
         model_options = {}
-        for model_key, model_info in available_models.items():
-            model_options[f"{model_info['name']} ({model_key})"] = model_key
+        for model_info in available_models:
+            model_options[f"{model_info['name']} ({model_info['id']})"] = model_info['id']
         
         # Initialize selected model if not exists
         if "selected_model" not in st.session_state:
@@ -880,13 +884,28 @@ def main():
             if "rag_system" in st.session_state:
                 del st.session_state.rag_system
             
-            st.success(f"✅ Switched to {available_models[new_model_key]['name']}!")
+            # Find the model name for success message
+            model_name = "Unknown Model"
+            for model_info in available_models:
+                if model_info['id'] == new_model_key:
+                    model_name = model_info['name']
+                    break
+            
+            st.success(f"✅ Switched to {model_name}!")
             st.info("💡 The system will use the new model for your next question.")
             st.rerun()
         
         # Show current model info
-        current_model_info = available_models[st.session_state.selected_model]
-        st.info(f"🎯 **Current Model:** {current_model_info['name']}\n\n{current_model_info['description']}")
+        current_model_info = None
+        for model_info in available_models:
+            if model_info['id'] == st.session_state.selected_model:
+                current_model_info = model_info
+                break
+        
+        if current_model_info:
+            st.info(f"🎯 **Current Model:** {current_model_info['name']}\n\n{current_model_info['description']}")
+        else:
+            st.warning("⚠️ Current model not found in available models list")
         
         st.divider()
         
