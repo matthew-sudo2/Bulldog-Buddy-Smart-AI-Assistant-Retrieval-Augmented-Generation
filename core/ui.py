@@ -137,29 +137,47 @@ def create_new_conversation():
     """Create a new conversation session"""
     if not st.session_state.get("conversation_manager") or not st.session_state.get("user"):
         return
-    
+
     user_id = st.session_state.user["id"]
     session_uuid = st.session_state.conversation_manager.create_conversation_session(
         user_id, 
         title="New Conversation"
     )
-    
+
     if session_uuid:
         # Save current conversation if it has messages
         save_current_conversation()
-        
+
+        # Clear RAG system memory for new conversation
+        rag_system = get_rag_system()
+        if rag_system:
+            try:
+                # Clear conversation history
+                if hasattr(rag_system, 'clear_conversation_history'):
+                    rag_system.clear_conversation_history()
+                
+                # Clear web content cache
+                if hasattr(rag_system, 'clear_web_content'):
+                    rag_system.clear_web_content()
+                
+                # Reset web session state
+                rag_system.web_session_active = False
+                rag_system.active_web_content = {}
+                rag_system.current_web_context = []
+                
+            except Exception as e:
+                st.error(f"Error clearing RAG memory for new conversation: {e}")
+
         # Start new conversation
         st.session_state.current_session_uuid = session_uuid
         st.session_state.messages = []
-        
+
         # Initialize saved count for new conversation
         st.session_state[f"saved_count_{session_uuid}"] = 0
-        
+
         # Re-add welcome message
         initialize_session_state()
         st.rerun()
-
-
 def save_current_conversation():
     """Save current conversation to database (only new messages)"""
     if (not st.session_state.get("conversation_manager") or 
@@ -603,12 +621,13 @@ def get_bot_response(user_message):
             user_name = st.session_state.user['first_name']
         
         # Build personalized system prompt
-        base_system_prompt = f"""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant. You have the personality of a helpful bulldog - loyal, protective, energetic, and always eager to help students.
+        base_system_prompt = f"""You are Bulldog Buddy, a Smart Campus Assistant AI with a friendly bulldog personality. You help students with campus life, academics, and general questions.
 
 The user's name is {user_name if user_name else 'Student'}, and you should use their name occasionally to make responses more personal.
 
+IMPORTANT: Do NOT introduce yourself unless specifically asked who you are. Jump straight into helping with the user's question.
+
 Key personality traits:
-- Start responses with "Woof!" occasionally but not every time
 - Be enthusiastic and supportive 
 - Use bulldog/dog-related expressions naturally (like "That's paw-some!" or "I'm doggone excited to help!")
 - Be knowledgeable about campus life, academics, and student concerns
@@ -617,8 +636,9 @@ Key personality traits:
 - Keep responses helpful, informative, and school-appropriate
 - If you don't know something specific about the campus, be honest but still helpful
 - Don't make up answers; if unsure, guide the student to official resources
+- Start responses with "Woof!" occasionally but not every time
 
-Remember: You're a smart, loyal companion who genuinely cares about helping students succeed!"""
+Remember: You're a smart, loyal companion who genuinely cares about helping students succeed! Answer questions directly without unnecessary introductions."""
         
         # Add personality customization
         if personality_modifier:
@@ -811,10 +831,14 @@ def main():
         
         # Additional info
         st.markdown("### ℹ️ About")
-        current_model_display = EnhancedRAGSystem.get_available_models().get(
-            st.session_state.get("selected_model", "gemma3:latest"), 
-            {"name": "Matt 3"}
-        )["name"]
+        # Get current model display name
+        current_model_id = st.session_state.get("selected_model", "gemma3:latest")
+        available_models = EnhancedRAGSystem.get_available_models()
+        current_model_display = "Matt 3"  # Default fallback
+        for model in available_models:
+            if model["id"] == current_model_id:
+                current_model_display = model["name"]
+                break
         
         st.markdown(f"""
         **Bulldog Buddy** is your AI-powered 24/7 campus companion! 🤖🐶
@@ -849,8 +873,8 @@ def main():
         # Get available models
         available_models = EnhancedRAGSystem.get_available_models()
         model_options = {}
-        for model_key, model_info in available_models.items():
-            model_options[f"{model_info['name']} ({model_key})"] = model_key
+        for model_info in available_models:
+            model_options[f"{model_info['name']} ({model_info['id']})"] = model_info['id']
         
         # Initialize selected model if not exists
         if "selected_model" not in st.session_state:
@@ -880,13 +904,28 @@ def main():
             if "rag_system" in st.session_state:
                 del st.session_state.rag_system
             
-            st.success(f"✅ Switched to {available_models[new_model_key]['name']}!")
+            # Find the model name for success message
+            model_name = "Unknown Model"
+            for model_info in available_models:
+                if model_info['id'] == new_model_key:
+                    model_name = model_info['name']
+                    break
+            
+            st.success(f"✅ Switched to {model_name}!")
             st.info("💡 The system will use the new model for your next question.")
             st.rerun()
         
         # Show current model info
-        current_model_info = available_models[st.session_state.selected_model]
-        st.info(f"🎯 **Current Model:** {current_model_info['name']}\n\n{current_model_info['description']}")
+        current_model_info = None
+        for model_info in available_models:
+            if model_info['id'] == st.session_state.selected_model:
+                current_model_info = model_info
+                break
+        
+        if current_model_info:
+            st.info(f"🎯 **Current Model:** {current_model_info['name']}\n\n{current_model_info['description']}")
+        else:
+            st.warning("⚠️ Current model not found in available models list")
         
         st.divider()
         
@@ -968,8 +1007,32 @@ def main():
         
         # Clear chat button
         if st.button("🗑️ Clear Chat History", key="clear", use_container_width=True):
+            # Clear UI chat messages
             st.session_state.messages = []
-            initialize_session_state()  # This will add the welcome message back
+            
+            # Clear RAG system conversation memory and web content
+            rag_system = get_rag_system()
+            if rag_system:
+                try:
+                    # Clear conversation history
+                    if hasattr(rag_system, 'clear_conversation_history'):
+                        rag_system.clear_conversation_history()
+                    
+                    # Clear web content cache
+                    if hasattr(rag_system, 'clear_web_content'):
+                        rag_system.clear_web_content()
+                    
+                    # Reset web session state
+                    rag_system.web_session_active = False
+                    rag_system.active_web_content = {}
+                    rag_system.current_web_context = []
+                    
+                except Exception as e:
+                    st.error(f"Error clearing RAG memory: {e}")
+            
+            # Reset to welcome message
+            initialize_session_state()
+            st.success("🧹 Chat history and memory cleared!")
             st.rerun()
         
         # Clear system cache button (for developers/testing)
