@@ -53,6 +53,57 @@ def check_docker():
         print_info("Please install Docker Desktop: https://www.docker.com/products/docker-desktop")
         return False
 
+def check_ollama_models():
+    """Check and pull required Ollama models"""
+    print_header("Checking Ollama Models")
+    
+    required_models = [
+        "gemma3:latest",
+        "llama3.2:latest",
+        "embeddinggemma:latest"
+    ]
+    
+    # Check if Ollama is installed
+    try:
+        subprocess.run(
+            ["ollama", "--version"],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        print_success("Ollama is installed")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print_error("Ollama is not installed")
+        print_info("Please install Ollama: https://ollama.com/download")
+        return False
+    
+    # Pull each required model
+    for model in required_models:
+        print_info(f"Pulling {model}...")
+        try:
+            result = subprocess.run(
+                ["ollama", "pull", model],
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minute timeout per model
+            )
+            
+            if result.returncode == 0:
+                print_success(f"Model {model} is ready")
+            else:
+                print_error(f"Failed to pull {model}")
+                if result.stderr:
+                    print(f"  Error: {result.stderr}")
+                    
+        except subprocess.TimeoutExpired:
+            print_error(f"Timeout while pulling {model}")
+            print_info("This may happen with slow internet. You can try pulling manually later.")
+        except Exception as e:
+            print_error(f"Error pulling {model}: {e}")
+    
+    print_success("Ollama model check complete")
+    return True
+
 def start_database():
     """Start PostgreSQL database using Docker Compose"""
     print_header("Starting PostgreSQL Database")
@@ -164,6 +215,14 @@ def start_frontend():
 def main():
     """Main startup sequence"""
     print_header("Bulldog Buddy - System Startup")
+    
+    # Step 0: Check and pull Ollama models
+    if not check_ollama_models():
+        print_error("Ollama models check failed. System may not work properly.")
+        print_info("You can continue, but AI features may not work.")
+        response = input("Continue anyway? (y/n): ")
+        if response.lower() != 'y':
+            sys.exit(1)
     
     # Step 1: Start database
     if not start_database():
