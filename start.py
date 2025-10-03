@@ -69,7 +69,9 @@ def check_ollama_models():
             ["ollama", "--version"],
             check=True,
             capture_output=True,
-            text=True
+            text=True,
+            encoding='utf-8',
+            errors='replace'
         )
         print_success("Ollama is installed")
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -81,23 +83,31 @@ def check_ollama_models():
     for model in required_models:
         print_info(f"Pulling {model}...")
         try:
-            result = subprocess.run(
+            # Use Popen to avoid capturing output that causes encoding issues
+            process = subprocess.Popen(
                 ["ollama", "pull", model],
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=300  # 5 minute timeout per model
+                encoding='utf-8',
+                errors='replace'
             )
             
-            if result.returncode == 0:
-                print_success(f"Model {model} is ready")
-            else:
-                print_error(f"Failed to pull {model}")
-                if result.stderr:
-                    print(f"  Error: {result.stderr}")
+            # Wait for completion with timeout
+            try:
+                stdout, stderr = process.communicate(timeout=300)
+                
+                if process.returncode == 0:
+                    print_success(f"Model {model} is ready")
+                else:
+                    print_error(f"Failed to pull {model}")
+                    if stderr:
+                        print(f"  Error: {stderr}")
+            except subprocess.TimeoutExpired:
+                process.kill()
+                print_error(f"Timeout while pulling {model}")
+                print_info("This may happen with slow internet. You can try pulling manually later.")
                     
-        except subprocess.TimeoutExpired:
-            print_error(f"Timeout while pulling {model}")
-            print_info("This may happen with slow internet. You can try pulling manually later.")
         except Exception as e:
             print_error(f"Error pulling {model}: {e}")
     
