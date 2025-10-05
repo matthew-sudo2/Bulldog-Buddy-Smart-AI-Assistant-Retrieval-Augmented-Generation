@@ -7,9 +7,10 @@ Write-Host "=" * 60
 # Check if .env files already exist
 $rootEnvExists = Test-Path ".env"
 $frontendEnvExists = Test-Path "frontend\.env"
+$infraEnvExists = Test-Path "infrastructure\.env"
 
-if ($rootEnvExists -and $frontendEnvExists) {
-    Write-Host "✅ Both .env files already exist!" -ForegroundColor Green
+if ($rootEnvExists -and $frontendEnvExists -and $infraEnvExists) {
+    Write-Host "✅ All .env files already exist!" -ForegroundColor Green
     $overwrite = Read-Host "Do you want to regenerate them? (y/N)"
     if ($overwrite -ne "y" -and $overwrite -ne "Y") {
         Write-Host "Exiting without changes." -ForegroundColor Yellow
@@ -38,6 +39,11 @@ if (-not $frontendEnvExists -or $overwrite -eq "y" -or $overwrite -eq "Y") {
     Write-Host "✅ Created frontend\.env from template" -ForegroundColor Green
 }
 
+if (-not $infraEnvExists -or $overwrite -eq "y" -or $overwrite -eq "Y") {
+    Copy-Item "infrastructure\.env.example" "infrastructure\.env"
+    Write-Host "✅ Created infrastructure\.env from template" -ForegroundColor Green
+}
+
 Write-Host "`n🔐 Generating secure secrets..." -ForegroundColor Yellow
 
 # Generate secure passwords
@@ -62,6 +68,13 @@ $frontendEnv = $frontendEnv -replace 'DB_PASSWORD=your_secure_password_here', "D
 $frontendEnv = $frontendEnv -replace 'SESSION_SECRET=your-long-random-secret-key-change-in-production', "SESSION_SECRET=$sessionSecret"
 $frontendEnv | Set-Content "frontend\.env"
 Write-Host "✅ Updated frontend\.env" -ForegroundColor Green
+
+# Update infrastructure .env
+Write-Host "📝 Updating infrastructure\.env file..." -ForegroundColor Yellow
+$infraEnv = Get-Content "infrastructure\.env"
+$infraEnv = $infraEnv -replace 'DB_PASSWORD=your_secure_password_here', "DB_PASSWORD=$dbPassword"
+$infraEnv | Set-Content "infrastructure\.env"
+Write-Host "✅ Updated infrastructure\.env" -ForegroundColor Green
 
 Write-Host "`n" + ("=" * 60) -ForegroundColor Cyan
 Write-Host "✅ Environment files created successfully!" -ForegroundColor Green

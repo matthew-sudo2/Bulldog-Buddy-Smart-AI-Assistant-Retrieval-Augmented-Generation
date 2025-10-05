@@ -127,6 +127,9 @@ celerybeat.pid
 frontend/.env
 frontend/.env.local
 frontend/.env.production
+infrastructure/.env
+infrastructure/.env.local
+infrastructure/.env.production
 .venv
 env/
 venv/
