@@ -1,12 +1,10 @@
 import psycopg2
+from db_config import get_connection_dict
 
-conn = psycopg2.connect(
-    host='localhost',
-    port=5432,
-    database='bulldog_buddy',
-    user='postgres',
-    password='bulldog_buddy_password_2025'
-)
+# Get database configuration from environment variables
+db_config = get_connection_dict()
+
+conn = psycopg2.connect(**db_config)
 
 cur = conn.cursor()
 
