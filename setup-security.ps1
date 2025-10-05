@@ -7,9 +7,9 @@ Write-Host "=" * 60
 # Check if .env files already exist
 $rootEnvExists = Test-Path ".env"
 $frontendEnvExists = Test-Path "frontend\.env"
-$infraEnvExists = Test-Path "infrastructure\.env"
+$infrastructureEnvExists = Test-Path "infrastructure\.env"
 
-if ($rootEnvExists -and $frontendEnvExists -and $infraEnvExists) {
+if ($rootEnvExists -and $frontendEnvExists -and $infrastructureEnvExists) {
     Write-Host "✅ All .env files already exist!" -ForegroundColor Green
     $overwrite = Read-Host "Do you want to regenerate them? (y/N)"
     if ($overwrite -ne "y" -and $overwrite -ne "Y") {
@@ -39,7 +39,7 @@ if (-not $frontendEnvExists -or $overwrite -eq "y" -or $overwrite -eq "Y") {
     Write-Host "✅ Created frontend\.env from template" -ForegroundColor Green
 }
 
-if (-not $infraEnvExists -or $overwrite -eq "y" -or $overwrite -eq "Y") {
+if (-not $infrastructureEnvExists -or $overwrite -eq "y" -or $overwrite -eq "Y") {
     Copy-Item "infrastructure\.env.example" "infrastructure\.env"
     Write-Host "✅ Created infrastructure\.env from template" -ForegroundColor Green
 }
@@ -71,9 +71,9 @@ Write-Host "✅ Updated frontend\.env" -ForegroundColor Green
 
 # Update infrastructure .env
 Write-Host "📝 Updating infrastructure\.env file..." -ForegroundColor Yellow
-$infraEnv = Get-Content "infrastructure\.env"
-$infraEnv = $infraEnv -replace 'DB_PASSWORD=your_secure_password_here', "DB_PASSWORD=$dbPassword"
-$infraEnv | Set-Content "infrastructure\.env"
+$infrastructureEnv = Get-Content "infrastructure\.env"
+$infrastructureEnv = $infrastructureEnv -replace 'DB_PASSWORD=your_secure_password_here', "DB_PASSWORD=$dbPassword"
+$infrastructureEnv | Set-Content "infrastructure\.env"
 Write-Host "✅ Updated infrastructure\.env" -ForegroundColor Green
 
 Write-Host "`n" + ("=" * 60) -ForegroundColor Cyan
