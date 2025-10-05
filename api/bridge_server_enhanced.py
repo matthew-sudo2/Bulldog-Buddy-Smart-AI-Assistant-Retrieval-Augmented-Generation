@@ -285,11 +285,11 @@ async def create_conversation(conv: ConversationCreate):
         raise HTTPException(status_code=503, detail="Conversation manager not available")
     
     try:
-        session_id = conversation_manager.create_conversation_session(
+        session_uuid = conversation_manager.create_conversation_session(
             conv.user_id,
             title=conv.title
         )
-        return {"session_id": session_id, "title": conv.title}
+        return {"session_uuid": session_uuid, "title": conv.title}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
