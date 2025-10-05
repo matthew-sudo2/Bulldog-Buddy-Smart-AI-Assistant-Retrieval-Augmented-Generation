@@ -1,6 +1,9 @@
 # Setup Environment Files
 # This script helps you create and configure .env files securely
 
+# Load System.Web for URL encoding
+Add-Type -AssemblyName System.Web
+
 Write-Host "🔒 Bulldog Buddy - Security Setup Script" -ForegroundColor Cyan
 Write-Host "=" * 60
 
@@ -53,11 +56,15 @@ $sessionSecret = Generate-Password -Length 32
 Write-Host "✅ Generated database password" -ForegroundColor Green
 Write-Host "✅ Generated session secret" -ForegroundColor Green
 
+# URL-encode the password for DATABASE_URL (special characters need encoding)
+$encodedPassword = [System.Web.HttpUtility]::UrlEncode($dbPassword)
+
 # Update root .env
 Write-Host "`n📝 Updating root .env file..." -ForegroundColor Yellow
 $rootEnv = Get-Content ".env"
 $rootEnv = $rootEnv -replace 'DB_PASSWORD=your_secure_password_here', "DB_PASSWORD=$dbPassword"
 $rootEnv = $rootEnv -replace 'SESSION_SECRET=your-long-random-secret-key-change-in-production', "SESSION_SECRET=$sessionSecret"
+$rootEnv = $rootEnv -replace 'DATABASE_URL=postgresql://username:password@localhost:5432/database_name', "DATABASE_URL=postgresql://postgres:$encodedPassword@localhost:5432/bulldog_buddy"
 $rootEnv | Set-Content ".env"
 Write-Host "✅ Updated root .env" -ForegroundColor Green
 
