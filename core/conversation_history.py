@@ -175,7 +175,7 @@ class ConversationHistoryManager:
                 SELECT 
                     cs.session_uuid,
                     cs.title,
-                    cs.pinned,
+                    cs.is_pinned,
                     cs.created_at,
                     cs.updated_at,
                     COUNT(cm.id) as message_count,
@@ -186,8 +186,8 @@ class ConversationHistoryManager:
                 FROM conversation_sessions cs
                 LEFT JOIN conversation_messages cm ON cs.id = cm.session_id
                 WHERE cs.user_id = %s
-                GROUP BY cs.id, cs.session_uuid, cs.title, cs.pinned, cs.created_at, cs.updated_at
-                ORDER BY cs.pinned DESC, cs.updated_at DESC
+                GROUP BY cs.id, cs.session_uuid, cs.title, cs.is_pinned, cs.created_at, cs.updated_at
+                ORDER BY cs.is_pinned DESC, cs.updated_at DESC
                 LIMIT %s
             """
             
@@ -198,7 +198,7 @@ class ConversationHistoryManager:
                 sessions.append({
                     'session_uuid': row['session_uuid'],
                     'title': row['title'],
-                    'pinned': row['pinned'] or False,
+                    'pinned': row['is_pinned'] or False,
                     'created_at': row['created_at'],
                     'updated_at': row['updated_at'],
                     'message_count': row['message_count'],
@@ -219,16 +219,13 @@ class ConversationHistoryManager:
             query = """
                 SELECT 
                     cm.content,
-                    cm.message_type,
-                    cm.confidence_score,
-                    cm.model_used,
-                    cm.sources_used,
+                    cm.message_role,
                     cm.metadata,
                     cm.created_at
                 FROM conversation_messages cm
                 JOIN conversation_sessions cs ON cm.session_id = cs.id
                 WHERE cs.session_uuid = %s AND cs.user_id = %s
-                ORDER BY cm.message_order ASC
+                ORDER BY cm.created_at ASC
             """
             
             results = self.db.execute_query(query, (session_uuid, user_id), fetch=True)
@@ -237,12 +234,10 @@ class ConversationHistoryManager:
             for row in results:
                 messages.append({
                     'content': row['content'],
-                    'message_type': row['message_type'],
-                    'confidence_score': row['confidence_score'] or 0.0,
-                    'model_used': row['model_used'],
-                    'sources_used': row['sources_used'] or [],
+                    'message_type': row['message_role'],  # Map message_role to message_type for frontend
+                    'role': row['message_role'],  # Also include role for compatibility
                     'metadata': row['metadata'] or {},
-                    'created_at': row['created_at']
+                    'created_at': row['created_at'].isoformat() if row['created_at'] else None
                 })
             
             return messages

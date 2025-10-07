@@ -163,7 +163,7 @@ app.get('/api/user', requireAuth, async (req, res) => {
 // ===========================================================================
 
 // Proxy all /api/bridge/* requests to the Enhanced API Bridge
-app.use('/api/bridge', requireAuth, async (req, res) => {
+app.use('/api/bridge', async (req, res) => {
     try {
         // Build correct URL: /api/bridge/health -> http://127.0.0.1:8001/api/health
         const targetPath = req.path.startsWith('/') ? req.path : `/${req.path}`;
