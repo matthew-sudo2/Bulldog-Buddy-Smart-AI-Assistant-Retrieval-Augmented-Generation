@@ -55,10 +55,14 @@ async function init() {
         // Load conversations
         await loadConversations();
 
+        console.log('🔍 After loading conversations:', conversations.length, 'conversations found');
+
         // Create or load initial conversation
         if (conversations.length === 0) {
+            console.log('📝 No conversations found, creating first conversation...');
             await createNewConversation();
         } else {
+            console.log('📂 Loading most recent conversation:', conversations[0].session_uuid);
             currentSession = conversations[0].session_uuid;
             await loadConversationMessages(currentSession);
         }
@@ -340,6 +344,19 @@ function renderConversationsList() {
 async function createNewConversation() {
     try {
         console.log('➕ Creating new conversation for user:', currentUser);
+        
+        // Check if there's already an empty "New Conversation" at the top
+        if (conversations.length > 0 && 
+            conversations[0].title === 'New Conversation' && 
+            conversations[0].message_count === 0) {
+            console.log('⚠️  Already have an empty "New Conversation", switching to it instead');
+            currentSession = conversations[0].session_uuid;
+            document.getElementById('messagesWrapper').innerHTML = '';
+            showWelcomeMessage();
+            renderConversationsList();
+            return;
+        }
+        
         const response = await fetch(`${API_BASE}/conversations`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
