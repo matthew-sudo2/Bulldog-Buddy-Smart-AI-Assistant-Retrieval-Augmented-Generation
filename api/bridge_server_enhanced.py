@@ -3,7 +3,7 @@ Enhanced API Bridge Server - Full Streamlit Feature Integration
 Connects the Express frontend to all backend functionality
 """
 
-from fastapi import FastAPI, HTTPException, Request, Query
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -293,14 +293,26 @@ async def create_conversation(conv: ConversationCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/conversations/user/{user_id}")
+async def get_user_conversations(user_id: int, limit: int = 50):
+    """Get all conversations for a user"""
+    if not conversation_manager:
+        raise HTTPException(status_code=503, detail="Conversation manager not available")
+    
+    try:
+        conversations = conversation_manager.get_user_conversations(user_id, limit=limit)
+        return {"conversations": conversations}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/conversations/{session_id}/messages")
-async def get_conversation_messages(session_id: str, user_id: int = 1):
+async def get_conversation_messages(session_id: str):
     """Get all messages in a conversation"""
     if not conversation_manager:
         raise HTTPException(status_code=503, detail="Conversation manager not available")
     
     try:
-        messages = conversation_manager.get_session_messages(session_id, user_id)
+        messages = conversation_manager.get_conversation_messages(session_id)
         return {"messages": messages}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -321,24 +333,15 @@ async def update_conversation(session_id: str, update: ConversationUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/conversations/{session_id}")
-async def delete_conversation(session_id: str, user_id: int = Query(default=1)):
-    """Delete a conversation - requires user_id query parameter"""
+async def delete_conversation(session_id: str):
+    """Delete a conversation"""
     if not conversation_manager:
         raise HTTPException(status_code=503, detail="Conversation manager not available")
     
     try:
-        logger.info(f"🗑️ Attempting to delete conversation {session_id} for user {user_id}")
-        success = conversation_manager.delete_conversation(session_id, user_id)
-        if success:
-            logger.info(f"✅ Successfully deleted conversation {session_id}")
-            return {"success": True, "message": "Conversation deleted successfully"}
-        else:
-            logger.warning(f"⚠️ Conversation {session_id} not found or access denied for user {user_id}")
-            raise HTTPException(status_code=404, detail="Conversation not found or already deleted")
-    except HTTPException:
-        raise
+        conversation_manager.delete_conversation_session(session_id)
+        return {"success": True}
     except Exception as e:
-        logger.error(f"❌ Error deleting conversation {session_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================
@@ -492,80 +495,6 @@ async def clear_web_content(url: Optional[str] = None):
         else:
             raise HTTPException(status_code=501, detail="Web content clearing not supported")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# ============================================================================
-# CONVERSATION HISTORY ENDPOINTS
-# ============================================================================
-
-@app.get("/api/conversations/user/{user_id}")
-async def get_user_conversations(user_id: int, limit: int = 50):
-    """Get conversation history for a user"""
-    if not conversation_manager:
-        raise HTTPException(status_code=503, detail="Conversation manager not available")
-    
-    try:
-        conversations = conversation_manager.get_user_sessions(user_id, limit)
-        return {
-            "conversations": conversations,
-            "total": len(conversations)
-        }
-    except Exception as e:
-        logger.error(f"Error fetching conversations: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/conversation/{session_uuid}")
-async def get_conversation_messages(session_uuid: str, user_id: int = 1):
-    """Get messages for a specific conversation"""
-    if not conversation_manager:
-        raise HTTPException(status_code=503, detail="Conversation manager not available")
-    
-    try:
-        messages = conversation_manager.get_session_messages(session_uuid, user_id)
-        return {
-            "messages": messages,
-            "session_uuid": session_uuid,
-            "total": len(messages)
-        }
-    except Exception as e:
-        logger.error(f"Error fetching conversation messages: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/conversation/create")
-async def create_conversation(request: Request):
-    """Create a new conversation session"""
-    if not conversation_manager:
-        raise HTTPException(status_code=503, detail="Conversation manager not available")
-    
-    try:
-        data = await request.json()
-        user_id = data.get('user_id', 1)
-        title = data.get('title', 'New Conversation')
-        
-        session_uuid = conversation_manager.create_conversation_session(user_id, title)
-        if session_uuid:
-            return {
-                "success": True,
-                "session_uuid": session_uuid,
-                "title": title
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to create conversation")
-    except Exception as e:
-        logger.error(f"Error creating conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.delete("/api/conversation/{session_uuid}")
-async def delete_conversation(session_uuid: str, user_id: int = 1):
-    """Delete a conversation and its messages"""
-    if not conversation_manager:
-        raise HTTPException(status_code=503, detail="Conversation manager not available")
-    
-    try:
-        # Note: Would need to implement delete_conversation in ConversationHistoryManager
-        return {"success": True, "deleted": session_uuid}
-    except Exception as e:
-        logger.error(f"Error deleting conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================

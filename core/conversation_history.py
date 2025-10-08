@@ -175,7 +175,7 @@ class ConversationHistoryManager:
                 SELECT 
                     cs.session_uuid,
                     cs.title,
-                    cs.is_pinned,
+                    cs.pinned,
                     cs.created_at,
                     cs.updated_at,
                     COUNT(cm.id) as message_count,
@@ -186,8 +186,8 @@ class ConversationHistoryManager:
                 FROM conversation_sessions cs
                 LEFT JOIN conversation_messages cm ON cs.id = cm.session_id
                 WHERE cs.user_id = %s
-                GROUP BY cs.id, cs.session_uuid, cs.title, cs.is_pinned, cs.created_at, cs.updated_at
-                ORDER BY cs.is_pinned DESC, cs.updated_at DESC
+                GROUP BY cs.id, cs.session_uuid, cs.title, cs.pinned, cs.created_at, cs.updated_at
+                ORDER BY cs.pinned DESC, cs.updated_at DESC
                 LIMIT %s
             """
             
@@ -198,7 +198,7 @@ class ConversationHistoryManager:
                 sessions.append({
                     'session_uuid': row['session_uuid'],
                     'title': row['title'],
-                    'pinned': row['is_pinned'] or False,
+                    'pinned': row['pinned'] or False,
                     'created_at': row['created_at'],
                     'updated_at': row['updated_at'],
                     'message_count': row['message_count'],
@@ -219,13 +219,16 @@ class ConversationHistoryManager:
             query = """
                 SELECT 
                     cm.content,
-                    cm.message_role,
+                    cm.message_type,
+                    cm.confidence_score,
+                    cm.model_used,
+                    cm.sources_used,
                     cm.metadata,
                     cm.created_at
                 FROM conversation_messages cm
                 JOIN conversation_sessions cs ON cm.session_id = cs.id
                 WHERE cs.session_uuid = %s AND cs.user_id = %s
-                ORDER BY cm.created_at ASC
+                ORDER BY cm.message_order ASC
             """
             
             results = self.db.execute_query(query, (session_uuid, user_id), fetch=True)
@@ -234,10 +237,12 @@ class ConversationHistoryManager:
             for row in results:
                 messages.append({
                     'content': row['content'],
-                    'message_type': row['message_role'],  # Map message_role to message_type for frontend
-                    'role': row['message_role'],  # Also include role for compatibility
+                    'message_type': row['message_type'],
+                    'confidence_score': row['confidence_score'] or 0.0,
+                    'model_used': row['model_used'],
+                    'sources_used': row['sources_used'] or [],
                     'metadata': row['metadata'] or {},
-                    'created_at': row['created_at'].isoformat() if row['created_at'] else None
+                    'created_at': row['created_at']
                 })
             
             return messages
@@ -357,32 +362,25 @@ class ConversationHistoryManager:
     def delete_conversation(self, session_uuid: str, user_id: int) -> bool:
         """
         Delete a conversation session and all its messages
-        Returns True only if a row was actually deleted
         """
-        conn = self.db.get_connection()
         try:
-            with conn.cursor() as cur:
-                query = """
-                    DELETE FROM conversation_sessions 
-                    WHERE session_uuid = %s AND user_id = %s
-                """
-                cur.execute(query, (session_uuid, user_id))
-                rows_deleted = cur.rowcount
-                conn.commit()
+            query = """
+                DELETE FROM conversation_sessions 
+                WHERE session_uuid = %s AND user_id = %s
+            """
+            
+            success = self.db.execute_query(query, (session_uuid, user_id), fetch=False)
+            
+            if success:
+                self.logger.info(f"Deleted conversation session {session_uuid}")
+                return True
+            else:
+                self.logger.error("Failed to delete conversation session")
+                return False
                 
-                if rows_deleted > 0:
-                    self.logger.info(f"✅ Deleted conversation {session_uuid} for user {user_id} ({rows_deleted} row(s))")
-                    return True
-                else:
-                    self.logger.warning(f"⚠️ No conversation found with UUID {session_uuid} for user {user_id}")
-                    return False
-                    
         except Exception as e:
-            conn.rollback()
-            self.logger.error(f"❌ Error deleting conversation: {e}")
+            self.logger.error(f"Error deleting conversation: {e}")
             return False
-        finally:
-            self.db.return_connection(conn)
     
     def cleanup_old_conversations(self, user_id: int, days_old: int = 90) -> int:
         """
