@@ -490,6 +490,8 @@ async function deleteConversation(sessionId) {
     try {
         console.log('🗑️ Deleting conversation:', sessionId);
         const userId = currentUser ? currentUser.id : 1;
+        console.log('👤 Current user:', currentUser);
+        console.log('🔑 Using user_id:', userId);
         
         // Show loading indicator on the chat item
         const chatItem = document.querySelector(`.chat-item[data-session="${sessionId}"]`);
@@ -498,7 +500,10 @@ async function deleteConversation(sessionId) {
             chatItem.style.pointerEvents = 'none';
         }
         
-        const response = await fetch(`${API_BASE}/conversations/${sessionId}?user_id=${userId}`, {
+        const deleteUrl = `${API_BASE}/conversations/${sessionId}?user_id=${userId}`;
+        console.log('📡 DELETE URL:', deleteUrl);
+        
+        const response = await fetch(deleteUrl, {
             method: 'DELETE',
             headers: { 
                 'Content-Type': 'application/json',
@@ -506,6 +511,8 @@ async function deleteConversation(sessionId) {
             }
         });
 
+        console.log('📊 Response status:', response.status);
+        
         if (response.ok) {
             console.log('✅ Conversation deleted from database');
             
