@@ -321,15 +321,19 @@ async def update_conversation(session_id: str, update: ConversationUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/conversations/{session_id}")
-async def delete_conversation(session_id: str):
+async def delete_conversation(session_id: str, user_id: int = 1):
     """Delete a conversation"""
     if not conversation_manager:
         raise HTTPException(status_code=503, detail="Conversation manager not available")
     
     try:
-        conversation_manager.delete_conversation_session(session_id)
-        return {"success": True}
+        success = conversation_manager.delete_conversation(session_id, user_id)
+        if success:
+            return {"success": True, "message": "Conversation deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Conversation not found or already deleted")
     except Exception as e:
+        logger.error(f"Error deleting conversation {session_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================================================

@@ -1,3 +1,40 @@
+/* Delete Chat Button */
+.delete-chat-btn {
+    background: transparent;
+    border: none;
+    color: #cb9650;
+    margin-left: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: background 0.2s, color 0.2s;
+    outline: none;
+    opacity: 0.7;
+}
+.delete-chat-btn:hover, .delete-chat-btn:focus {
+    background: #f8e7c6;
+    color: #b06d1c;
+    opacity: 1;
+}
+
+/* Stylish no-messages state */
+.stylish-no-messages {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-muted);
+    font-size: 15px;
+    padding: 32px 0 16px 0;
+    text-align: center;
+    opacity: 0.85;
+}
+.stylish-no-messages i {
+    font-size: 22px;
+    color: #cb9650;
+    opacity: 0.7;
+}
 /**
  * Bulldog Buddy - Redesigned Chat Interface
  * Modern, clean design matching the reference screenshot
