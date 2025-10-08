@@ -357,25 +357,32 @@ class ConversationHistoryManager:
     def delete_conversation(self, session_uuid: str, user_id: int) -> bool:
         """
         Delete a conversation session and all its messages
+        Returns True only if a row was actually deleted
         """
+        conn = self.db.get_connection()
         try:
-            query = """
-                DELETE FROM conversation_sessions 
-                WHERE session_uuid = %s AND user_id = %s
-            """
-            
-            success = self.db.execute_query(query, (session_uuid, user_id), fetch=False)
-            
-            if success:
-                self.logger.info(f"Deleted conversation session {session_uuid}")
-                return True
-            else:
-                self.logger.error("Failed to delete conversation session")
-                return False
+            with conn.cursor() as cur:
+                query = """
+                    DELETE FROM conversation_sessions 
+                    WHERE session_uuid = %s AND user_id = %s
+                """
+                cur.execute(query, (session_uuid, user_id))
+                rows_deleted = cur.rowcount
+                conn.commit()
                 
+                if rows_deleted > 0:
+                    self.logger.info(f"✅ Deleted conversation {session_uuid} for user {user_id} ({rows_deleted} row(s))")
+                    return True
+                else:
+                    self.logger.warning(f"⚠️ No conversation found with UUID {session_uuid} for user {user_id}")
+                    return False
+                    
         except Exception as e:
-            self.logger.error(f"Error deleting conversation: {e}")
+            conn.rollback()
+            self.logger.error(f"❌ Error deleting conversation: {e}")
             return False
+        finally:
+            self.db.return_connection(conn)
     
     def cleanup_old_conversations(self, user_id: int, days_old: int = 90) -> int:
         """
