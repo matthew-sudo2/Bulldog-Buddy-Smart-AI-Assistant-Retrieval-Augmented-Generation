@@ -393,6 +393,30 @@ async function loadConversation(sessionId) {
     renderConversationsList();
 }
 
+function updateCurrentConversationMetadata(userMessage, assistantResponse) {
+    if (!currentSession) return;
+    
+    // Find the current conversation in the array
+    const conversationIndex = conversations.findIndex(conv => conv.session_uuid === currentSession);
+    
+    if (conversationIndex !== -1) {
+        // Update the conversation metadata
+        conversations[conversationIndex].message_count = (conversations[conversationIndex].message_count || 0) + 2; // user + assistant
+        conversations[conversationIndex].preview = userMessage.substring(0, 50); // First 50 chars of user message
+        conversations[conversationIndex].updated_at = new Date().toISOString();
+        
+        // If title is still "New Conversation", update it with first message
+        if (conversations[conversationIndex].title === 'New Conversation') {
+            conversations[conversationIndex].title = userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : '');
+        }
+        
+        console.log('✏️ Updated conversation metadata:', conversations[conversationIndex]);
+        
+        // Re-render the conversation list to show updated info
+        renderConversationsList();
+    }
+}
+
 async function loadConversationMessages(sessionId) {
     try {
         console.log('🔍 Loading messages for session:', sessionId);
@@ -618,23 +642,7 @@ async function sendMessage() {
             );
             
             // Update the current conversation in the local array
-            const currentConv = conversations.find(conv => conv.session_uuid === currentSession);
-            if (currentConv) {
-                // Update message count
-                currentConv.message_count = (currentConv.message_count || 0) + 2; // user message + assistant message
-                currentConv.updated_at = new Date().toISOString();
-                currentConv.preview = message.substring(0, 50); // First 50 chars of user message
-                
-                // If title is still "New Conversation", update it with the first message
-                if (currentConv.title === 'New Conversation' && message.length > 0) {
-                    currentConv.title = message.substring(0, 50);
-                }
-                
-                console.log('📊 Updated conversation metadata:', currentConv);
-                
-                // Re-render the conversations list to show updated info
-                renderConversationsList();
-            }
+            updateCurrentConversationMetadata(message, data.response);
         } else {
             const errorText = await response.text();
             console.error('❌ Chat response error:', response.status, errorText);
