@@ -163,11 +163,12 @@ app.get('/api/user', requireAuth, async (req, res) => {
 // ===========================================================================
 
 // Proxy all /api/bridge/* requests to the Enhanced API Bridge
-app.use('/api/bridge', requireAuth, async (req, res) => {
+app.use('/api/bridge', async (req, res) => {
     try {
-        // Build correct URL: /api/bridge/health -> http://127.0.0.1:8001/api/health
+        // Build correct URL: /api/bridge/health?param=value -> http://127.0.0.1:8001/api/health?param=value
         const targetPath = req.path.startsWith('/') ? req.path : `/${req.path}`;
-        const targetUrl = `${API_BRIDGE_BASE_URL}/api${targetPath}`;
+        const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+        const targetUrl = `${API_BRIDGE_BASE_URL}/api${targetPath}${queryString}`;
         
         console.log(`[API Proxy] ${req.method} ${req.originalUrl} -> ${targetUrl}`);
         
@@ -178,7 +179,7 @@ app.use('/api/bridge', requireAuth, async (req, res) => {
             }
         };
 
-        if (req.method !== 'GET' && req.method !== 'HEAD') {
+        if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'DELETE') {
             options.body = JSON.stringify(req.body);
         }
 

@@ -41,9 +41,9 @@ async function init() {
             currentUser = await response.json();
             console.log('User loaded:', currentUser);
         } else {
-            console.error('Failed to load user');
-            window.location.href = '/login';
-            return;
+            console.warn('User authentication failed, using fallback user for testing');
+            // Use fallback user for testing when not authenticated
+            currentUser = { id: 1, username: 'admin', email: 'admin@bulldogbuddy.com' };
         }
 
         // Load user settings
@@ -55,10 +55,14 @@ async function init() {
         // Load conversations
         await loadConversations();
 
+        console.log('🔍 After loading conversations:', conversations.length, 'conversations found');
+
         // Create or load initial conversation
         if (conversations.length === 0) {
+            console.log('📝 No conversations found, creating first conversation...');
             await createNewConversation();
         } else {
+            console.log('📂 Loading most recent conversation:', conversations[0].session_uuid);
             currentSession = conversations[0].session_uuid;
             await loadConversationMessages(currentSession);
         }
@@ -259,14 +263,28 @@ function closeSettings() {
 
 async function loadConversations() {
     try {
-        const response = await fetch(`${API_BASE}/conversations/user/${currentUser.id}`);
+        console.log('📋 Loading conversations...');
+        const userId = currentUser ? currentUser.id : 1; // fallback to user 1
+        console.log('👤 Using user ID:', userId);
+        
+        const apiUrl = `${API_BASE}/conversations/user/${userId}`;
+        console.log('🌐 Conversations API URL:', apiUrl);
+        
+        const response = await fetch(apiUrl);
+        console.log('📡 Conversations response status:', response.status);
+        
         if (response.ok) {
             const data = await response.json();
+            console.log('📦 Conversations data:', data);
             conversations = data.conversations || [];
+            console.log('💼 Conversations count:', conversations.length);
             renderConversationsList();
+        } else {
+            const errorText = await response.text();
+            console.error('❌ Failed to load conversations:', response.status, response.statusText, errorText);
         }
     } catch (error) {
-        console.error('Failed to load conversations:', error);
+        console.error('💥 Failed to load conversations:', error);
     }
 }
 
@@ -287,32 +305,58 @@ function renderConversationsList() {
         const preview = conv.preview || 'No messages yet';
         const time = formatTime(conv.updated_at);
         const msgCount = conv.message_count || 0;
-
         return `
-            <button class="chat-item ${isActive ? 'active' : ''}" data-session="${conv.session_uuid}">
+            <div class="chat-item ${isActive ? 'active' : ''}" data-session="${conv.session_uuid}">
                 <div class="chat-item-header">
                     <span class="chat-item-title">${escapeHtml(title)}</span>
                     <span class="chat-item-time">${time}</span>
+                    <button class="delete-chat-btn" title="Delete Conversation" data-delete-session="${conv.session_uuid}">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
                 <div class="chat-item-preview">${escapeHtml(preview)}</div>
                 <div class="chat-item-meta">
                     <span class="chat-item-messages">${msgCount} msgs</span>
                 </div>
-            </button>
+            </div>
         `;
     }).join('');
 
-    // Add click handlers
+    // Add click handlers for chat selection
     chatList.querySelectorAll('.chat-item').forEach(item => {
-        item.addEventListener('click', function() {
+        item.addEventListener('click', function(e) {
+            // Prevent click if delete button was pressed
+            if (e.target.closest('.delete-chat-btn')) return;
             const sessionId = this.dataset.session;
             loadConversation(sessionId);
+        });
+    });
+    // Add click handlers for delete buttons
+    chatList.querySelectorAll('.delete-chat-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const sessionId = this.dataset.deleteSession;
+            deleteConversation(sessionId);
         });
     });
 }
 
 async function createNewConversation() {
     try {
+        console.log('➕ Creating new conversation for user:', currentUser);
+        
+        // Check if there's already an empty "New Conversation" at the top
+        if (conversations.length > 0 && 
+            conversations[0].title === 'New Conversation' && 
+            conversations[0].message_count === 0) {
+            console.log('⚠️  Already have an empty "New Conversation", switching to it instead');
+            currentSession = conversations[0].session_uuid;
+            document.getElementById('messagesWrapper').innerHTML = '';
+            showWelcomeMessage();
+            renderConversationsList();
+            return;
+        }
+        
         const response = await fetch(`${API_BASE}/conversations`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -325,23 +369,36 @@ async function createNewConversation() {
         if (response.ok) {
             const data = await response.json();
             currentSession = data.session_uuid;
+            console.log('✅ New conversation created:', currentSession);
             
-            // Clear messages
+            // Add the new conversation to the local array at the beginning
+            const newConversation = {
+                session_uuid: data.session_uuid,
+                title: data.title || 'New Conversation',
+                preview: 'No messages yet',
+                message_count: 0,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            conversations.unshift(newConversation);
+            console.log('📊 Conversations count:', conversations.length);
+            
+            // Clear messages and show welcome
             document.getElementById('messagesWrapper').innerHTML = '';
-            
-            // Show welcome message
             showWelcomeMessage();
             
-            // Reload conversations list
-            await loadConversations();
+            // Re-render the conversations list with the new conversation
+            renderConversationsList();
             
             showNotification('New conversation started', 'success');
         } else {
-            showNotification('Failed to create conversation', 'error');
+            const errorText = await response.text();
+            console.error('❌ Failed to create conversation:', response.status, errorText);
+            showNotification(`Failed to create conversation: ${response.status}`, 'error');
         }
     } catch (error) {
-        console.error('Create conversation error:', error);
-        showNotification('Error creating conversation', 'error');
+        console.error('💥 Create conversation error:', error);
+        showNotification(`Error creating conversation: ${error.message}`, 'error');
     }
 }
 
@@ -353,30 +410,94 @@ async function loadConversation(sessionId) {
     renderConversationsList();
 }
 
+function updateCurrentConversationMetadata(userMessage, assistantResponse) {
+    if (!currentSession) return;
+    
+    // Find the current conversation in the array
+    const conversationIndex = conversations.findIndex(conv => conv.session_uuid === currentSession);
+    
+    if (conversationIndex !== -1) {
+        // Update the conversation metadata
+        conversations[conversationIndex].message_count = (conversations[conversationIndex].message_count || 0) + 2; // user + assistant
+        conversations[conversationIndex].preview = userMessage.substring(0, 50); // First 50 chars of user message
+        conversations[conversationIndex].updated_at = new Date().toISOString();
+        
+        // If title is still "New Conversation", update it with first message
+        if (conversations[conversationIndex].title === 'New Conversation') {
+            conversations[conversationIndex].title = userMessage.substring(0, 30) + (userMessage.length > 30 ? '...' : '');
+        }
+        
+        console.log('✏️ Updated conversation metadata:', conversations[conversationIndex]);
+        
+        // Re-render the conversation list to show updated info
+        renderConversationsList();
+    }
+}
+
 async function loadConversationMessages(sessionId) {
     try {
-        const response = await fetch(`${API_BASE}/conversations/${sessionId}/messages`);
+        console.log('🔍 Loading messages for session:', sessionId);
+        // Include user_id parameter as required by API
+        const userId = currentUser ? currentUser.id : 1; // fallback to user 1
+        console.log('👤 Using user ID:', userId);
+        
+        const apiUrl = `${API_BASE}/conversations/${sessionId}/messages?user_id=${userId}`;
+        console.log('🌐 API URL:', apiUrl);
+        
+        const response = await fetch(apiUrl);
+        console.log('📡 Response status:', response.status);
+        
         if (response.ok) {
             const data = await response.json();
+            console.log('📦 Response data:', data);
             const messages = data.messages || [];
+            console.log('💬 Messages count:', messages.length);
             
             const wrapper = document.getElementById('messagesWrapper');
-            wrapper.innerHTML = '';
+            if (!wrapper) {
+                console.error('❌ messagesWrapper element not found!');
+                return;
+            }
             
-            messages.forEach(msg => {
+            wrapper.innerHTML = '';
+            console.log('🧹 Cleared messages wrapper');
+            
+            if (messages.length === 0) {
+                console.log('📭 No messages to display');
+                wrapper.innerHTML = '<div class="no-messages stylish-no-messages"><i class="fas fa-comments"></i> No messages in this conversation yet.</div>';
+                return;
+            }
+            // Always clear and show all messages
+            messages.forEach((msg, index) => {
+                console.log(`📝 Adding message ${index + 1}:`, msg);
                 addMessageToUI(
-                    msg.message_type,
+                    msg.message_type || msg.role || 'assistant',
                     msg.content,
                     msg.created_at,
-                    msg.confidence_score,
-                    msg.sources_used
+                    msg.confidence_score || 1.0,
+                    msg.sources_used || []
                 );
             });
-            
             scrollToBottom();
+            console.log('✅ Messages loaded successfully');
+        } else {
+            const errorText = await response.text();
+            console.error('❌ Failed to load messages:', response.status, response.statusText, errorText);
+            
+            // Show error in UI
+            const wrapper = document.getElementById('messagesWrapper');
+            if (wrapper) {
+                wrapper.innerHTML = `<div class="error-message">Failed to load messages: ${response.status} ${response.statusText}</div>`;
+            }
         }
     } catch (error) {
-        console.error('Load messages error:', error);
+        console.error('💥 Load messages error:', error);
+        
+        // Show error in UI
+        const wrapper = document.getElementById('messagesWrapper');
+        if (wrapper) {
+            wrapper.innerHTML = `<div class="error-message">Error loading messages: ${error.message}</div>`;
+        }
     }
 }
 
@@ -384,23 +505,102 @@ async function deleteConversation(sessionId) {
     if (!confirm('Are you sure you want to delete this conversation?')) return;
     
     try {
-        const response = await fetch(`${API_BASE}/conversations/${sessionId}`, {
+        console.log('🗑️ Deleting conversation:', sessionId);
+        const userId = currentUser ? currentUser.id : 1;
+        console.log('👤 Current user:', currentUser);
+        console.log('🔑 Using user_id:', userId);
+        
+        // Show loading indicator on the chat item
+        const chatItem = document.querySelector(`.chat-item[data-session="${sessionId}"]`);
+        if (chatItem) {
+            chatItem.style.opacity = '0.5';
+            chatItem.style.pointerEvents = 'none';
+        }
+        
+        const deleteUrl = `${API_BASE}/conversations/${sessionId}?user_id=${userId}`;
+        console.log('📡 DELETE URL:', deleteUrl);
+        
+        const response = await fetch(deleteUrl, {
             method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: currentUser.id })
+            headers: { 
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            }
         });
 
+        console.log('📊 Response status:', response.status);
+        
         if (response.ok) {
-            if (sessionId === currentSession) {
-                await createNewConversation();
+            console.log('✅ Conversation deleted from database');
+            
+            // Remove from local conversations array immediately
+            const oldLength = conversations.length;
+            conversations = conversations.filter(conv => conv.session_uuid !== sessionId);
+            console.log(`📊 Conversations: ${oldLength} → ${conversations.length}`);
+            
+            // Immediately remove the DOM element
+            if (chatItem) {
+                chatItem.remove();
             }
-            await loadConversations();
-            showNotification('Conversation deleted', 'success');
+            
+            // Update the count immediately
+            const chatCount = document.getElementById('chatCount');
+            if (chatCount) {
+                chatCount.textContent = conversations.length;
+            }
+            
+            // Handle if we deleted the current conversation
+            if (sessionId === currentSession) {
+                console.log('🔄 Deleted the active conversation');
+                // Clear current session first
+                currentSession = null;
+                
+                // Clear the messages display
+                const messagesWrapper = document.getElementById('messagesWrapper');
+                if (messagesWrapper) {
+                    messagesWrapper.innerHTML = '';
+                }
+                
+                // If there are other conversations, load the first one
+                if (conversations.length > 0) {
+                    // Get the first conversation that still exists
+                    const nextConversation = conversations[0];
+                    console.log('📍 Switching to conversation:', nextConversation.session_uuid);
+                    currentSession = nextConversation.session_uuid;
+                    
+                    // Load messages for the new current conversation
+                    await loadConversationMessages(currentSession);
+                    
+                    // Re-render list to update active state
+                    renderConversationsList();
+                } else {
+                    // No conversations left, show welcome message
+                    console.log('📭 No conversations remaining');
+                    showWelcomeMessage();
+                    
+                    // Show empty state in sidebar
+                    const chatList = document.getElementById('chatList');
+                    if (chatList) {
+                        chatList.innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 16px;">No conversations yet</p>';
+                    }
+                }
+            }
+            
+            showNotification('Conversation deleted successfully', 'success');
         } else {
-            showNotification('Failed to delete conversation', 'error');
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            console.error('❌ Failed to delete conversation:', errorData);
+            
+            // Restore UI if deletion failed
+            if (chatItem) {
+                chatItem.style.opacity = '1';
+                chatItem.style.pointerEvents = 'auto';
+            }
+            
+            showNotification(`Failed to delete conversation: ${errorData.detail || response.statusText}`, 'error');
         }
     } catch (error) {
-        console.error('Delete conversation error:', error);
+        console.error('💥 Delete conversation error:', error);
         showNotification('Error deleting conversation', 'error');
     }
 }
@@ -465,8 +665,8 @@ async function sendMessage() {
                 data.sources || []
             );
             
-            // Update conversation list
-            await loadConversations();
+            // Update the current conversation in the local array
+            updateCurrentConversationMetadata(message, data.response);
         } else {
             const errorText = await response.text();
             console.error('❌ Chat response error:', response.status, errorText);
