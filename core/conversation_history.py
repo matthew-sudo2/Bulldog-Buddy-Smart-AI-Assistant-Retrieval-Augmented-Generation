@@ -125,11 +125,11 @@ class ConversationHistoryManager:
             # Insert message
             insert_query = """
                 INSERT INTO conversation_messages (
-                    session_id, user_id, message_order, message_type, content,
+                    session_id, user_id, message_order, message_type, message_role, content,
                     embedding, confidence_score, model_used, sources_used, 
                     metadata, created_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
             """
             
@@ -144,7 +144,7 @@ class ConversationHistoryManager:
             success = self.db.execute_query(
                 insert_query,
                 (
-                    session_id, user_id, message_order, message_type, content,
+                    session_id, user_id, message_order, message_type, message_type, content,
                     embedding, confidence_score, model_used, sources_used or [],
                     json.dumps(metadata), datetime.now()
                 ),

@@ -119,14 +119,28 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
-# Environments
+# Environments and Secrets
 .env
+.env.local
+.env.production
+.env.development
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+infrastructure/.env
+infrastructure/.env.local
+infrastructure/.env.production
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Database configuration files with credentials
+**/config.py
+**/database_config.py
+**/secrets.py
 
 # Spyder project settings
 .spyderproject
@@ -212,6 +226,15 @@ config.json
 .env.local
 .env.production
 secrets/
+
+# Scripts with hardcoded credentials (create from templates instead)
+scripts/fix_*.py
+scripts/check_*.py
+scripts/test_*.py
+scripts/*_test.py
+
+# Allow db_config.py as it's a template that reads from .env
+!scripts/db_config.py
 
 # Backup files
 *.bak

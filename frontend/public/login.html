@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Log In or Sign Up - Bulldog Buddy</title>
+
+        <link rel="stylesheet" href="../src/assets/styles/login.css">
+        <link rel="icon" href="favicon.ico" type="image/x-icon">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter+Tight:ital,wght@0,100..900;1,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+        <script src="https://accounts.google.com/gsi/client" async defer></script>
+    </head>
+    <body>
+        <header>
+            <div class="logo-container">
+                <img src="../src/assets/images/bulldog-logo.png" class="logo-image">
+                <span class="logo-text">
+                    <span class="logo-bulldog">Bulldog</span> <span class="logo-buddy">Buddy</span>
+                </span>
+            </div>
+        </header>
+
+        <main class="auth-main">
+            <section class="auth-container">
+                <div class="auth-header">
+                    <h1>Log in or Sign up</h1>
+                    <p>Get quick answers straight from your buddy</p>
+                </div>
+                
+                <form class="auth-form">
+                    <div class="input-container">
+                        <input type="email" placeholder="Email address" class="auth-input" required>
+                    </div>
+                    <div class="input-container">
+                        <input type="password" placeholder="Password" class="auth-input" required>
+                    </div>
+                    <button type="submit" class="auth-button">Continue</button>
+                </form>
+                
+                <div class="auth-divider">
+                    <span class="divider-line"></span>
+                    <span class="divider-text">OR</span>
+                    <span class="divider-line"></span>
+                </div>
+
+                <div id="g_id_onload"
+                    data-client_id="612477523743-13tajd11p5fhl4q0pthp75cd50hf9jq2.apps.googleusercontent.com"
+                    data-callback="handleCredentialResponse"
+                    data-auto_prompt="false">
+                </div>
+
+                <div class="g_id_signin"
+                    data-type="standard"
+                    data-size="large"
+                    data-theme="outline"
+                    data-text="signin_with"
+                    data-shape="rectangular"
+                    data-logo_alignment="left">
+                </div>
+            </section>
+        </main>
+
+        <script>
+            document.querySelector('.logo-container').addEventListener('click', function() {
+                window.location.href = '/';
+            });
+            
+            document.querySelector('.logo-container').style.cursor = 'pointer';
+
+            document.querySelector('.auth-form').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const email = document.querySelector('input[type="email"]').value;
+                const password = document.querySelector('input[type="password"]').value;
+                
+                try {
+                    const response = await fetch('/auth', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email, password })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        window.location.href = result.redirect;
+                    } else {
+                        alert(result.message);
+                    }
+                } catch (error) {
+                    alert('An error occurred. Please try again.');
+                    console.error('Error:', error);
+                }
+            });
+
+            function handleCredentialResponse(response) {
+                const idToken = response.credential;
+
+                fetch("/google-login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ token: idToken }),
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = data.redirect || "/dashboard";
+                    } else {
+                        alert("Please sign up first.");
+                    }
+                })
+                .catch(err => console.error("Error verifying token:", err));
+            }
+        </script>
+    </body>
+</html>
