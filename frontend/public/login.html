@@ -9,6 +9,7 @@
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter+Tight:ital,wght@0,100..900;1,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <script src="https://accounts.google.com/gsi/client" async defer></script>
     </head>
     <body>
@@ -24,18 +25,27 @@
         <main class="auth-main">
             <section class="auth-container">
                 <div class="auth-header">
-                    <h1>Log in or Sign up</h1>
-                    <p>Get quick answers straight from your buddy</p>
+                    <h1>Welcome Back</h1>
+                    <p>Log in to continue with Bulldog Buddy</p>
                 </div>
                 
                 <form class="auth-form">
                     <div class="input-container">
-                        <input type="email" placeholder="Email address" class="auth-input" required>
+                        <div class="input-wrapper">
+                            <i class="fas fa-envelope input-icon"></i>
+                            <input type="email" placeholder="Email address" class="auth-input" required>
+                        </div>
                     </div>
                     <div class="input-container">
-                        <input type="password" placeholder="Password" class="auth-input" required>
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" placeholder="Password" class="auth-input" required>
+                        </div>
                     </div>
-                    <button type="submit" class="auth-button">Continue</button>
+                    <button type="submit" class="auth-button">
+                        <span class="button-text">Continue</span>
+                        <i class="fas fa-arrow-right button-icon"></i>
+                    </button>
                 </form>
                 
                 <div class="auth-divider">
@@ -44,19 +54,25 @@
                     <span class="divider-line"></span>
                 </div>
 
-                <div id="g_id_onload"
-                    data-client_id="612477523743-13tajd11p5fhl4q0pthp75cd50hf9jq2.apps.googleusercontent.com"
-                    data-callback="handleCredentialResponse"
-                    data-auto_prompt="false">
+                <div class="google-signin-wrapper">
+                    <div id="g_id_onload"
+                        data-client_id="612477523743-13tajd11p5fhl4q0pthp75cd50hf9jq2.apps.googleusercontent.com"
+                        data-callback="handleCredentialResponse"
+                        data-auto_prompt="false">
+                    </div>
+
+                    <div class="g_id_signin"
+                        data-type="standard"
+                        data-size="large"
+                        data-theme="outline"
+                        data-text="signin_with"
+                        data-shape="rectangular"
+                        data-logo_alignment="left">
+                    </div>
                 </div>
 
-                <div class="g_id_signin"
-                    data-type="standard"
-                    data-size="large"
-                    data-theme="outline"
-                    data-text="signin_with"
-                    data-shape="rectangular"
-                    data-logo_alignment="left">
+                <div class="auth-footer">
+                    <p>Don't have an account? <a href="/register" class="auth-link">Sign up</a></p>
                 </div>
             </section>
         </main>

@@ -151,7 +151,7 @@ header {
 
 .auth-input {
     width: 100%;
-    padding: 15px 45px;
+    padding: 15px 45px 15px 48px;
     border: 2px solid #e2e8f0;
     border-radius: 12px;
     font-size: 15px;
@@ -166,10 +166,132 @@ header {
     box-shadow: 0 0 0 3px rgba(19, 44, 111, 0.1);
 }
 
-.input-wrapper:focus-within .input-icon {
+.auth-input:focus + .input-icon {
     color: #132c6f;
 }
 
+.toggle-password {
+    position: absolute;
+    right: 18px;
+    color: #727272;
+    cursor: pointer;
+    font-size: 16px;
+    transition: color 0.3s ease;
+}
+
+.toggle-password:hover {
+    color: #132c6f;
+}
+
+/* Password Strength Indicator */
+.password-strength {
+    margin-top: 8px;
+    height: 4px;
+    background-color: #e2e8f0;
+    border-radius: 2px;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.strength-bar {
+    height: 100%;
+    width: 0;
+    transition: all 0.3s ease;
+    border-radius: 2px;
+}
+
+.strength-bar.weak {
+    background-color: #ef4444;
+    width: 33%;
+}
+
+.strength-bar.medium {
+    background-color: #f59e0b;
+    width: 66%;
+}
+
+.strength-bar.strong {
+    background-color: #10b981;
+    width: 100%;
+}
+
+/* Terms Checkbox */
+.terms-container {
+    margin-bottom: 25px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    cursor: pointer;
+    position: relative;
+    padding-left: 30px;
+}
+
+.checkbox-label input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.checkmark {
+    position: absolute;
+    left: 0;
+    top: 2px;
+    height: 20px;
+    width: 20px;
+    background-color: #f8f9fa;
+    border: 2px solid #e2e8f0;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+.checkbox-label:hover .checkmark {
+    border-color: #132c6f;
+}
+
+.checkbox-label input:checked ~ .checkmark {
+    background-color: #132c6f;
+    border-color: #132c6f;
+}
+
+.checkmark:after {
+    content: "";
+    position: absolute;
+    display: none;
+    left: 6px;
+    top: 2px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.checkbox-label input:checked ~ .checkmark:after {
+    display: block;
+}
+
+.terms-text {
+    font-size: 14px;
+    color: #727272;
+    line-height: 1.5;
+}
+
+.terms-link {
+    color: #132c6f;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+.terms-link:hover {
+    color: #cb9650;
+    text-decoration: underline;
+}
+
+/* Submit Button */
 .auth-button {
     width: 100%;
     padding: 16px;
@@ -198,56 +320,18 @@ header {
     transform: translateY(0);
 }
 
+.auth-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .button-icon {
     transition: transform 0.3s ease;
 }
 
 .auth-button:hover .button-icon {
     transform: translateX(3px);
-}
-
-/* Divider Styles */
-.auth-divider {
-    display: flex;
-    align-items: center;
-    margin: 30px 0;
-}
-
-.divider-line {
-    flex: 1;
-    height: 1px;
-    background-color: #e2e8f0;
-}
-
-.divider-text {
-    padding: 0 15px;
-    color: #000000;
-    font-size: 14px;
-    font-weight: 400;
-}
-
-/* Google Login */
-.google-signin-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 1.5rem 0;
-}
-
-.g_id_signin {
-    display: flex;
-    justify-content: center;
-}
-
-.google-login {
-    display: flex;
-    justify-content: center;
-    width: 100%;
-}
-
-.auth-container .g_id_signin {
-    width: 100%;
-    max-width: 350px;
 }
 
 /* Footer */
@@ -305,7 +389,7 @@ header {
     }
     
     .auth-input {
-        padding: 13px 40px;
+        padding: 13px 40px 13px 45px;
         font-size: 14px;
     }
 }

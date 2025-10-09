@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Sign Up - Bulldog Buddy</title>
+
+        <link rel="stylesheet" href="/src/assets/styles/register.css">
+        <link rel="icon" href="/favicon.ico" type="image/x-icon">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter+Tight:ital,wght@0,100..900;1,100..900&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    </head>
+    <body>
+        <header>
+            <div class="logo-container">
+                <img src="/src/assets/images/bulldog-logo.png" class="logo-image">
+                <span class="logo-text">
+                    <span class="logo-bulldog">Bulldog</span> <span class="logo-buddy">Buddy</span>
+                </span>
+            </div>
+        </header>
+
+        <main class="auth-main">
+            <section class="auth-container">
+                <div class="auth-header">
+                    <h1>Create Your Account</h1>
+                    <p>Join Bulldog Buddy and get personalized assistance</p>
+                </div>
+                
+                <form class="auth-form" id="registerForm">
+                    <div class="input-container">
+                        <div class="input-wrapper">
+                            <i class="fas fa-user input-icon"></i>
+                            <input type="text" id="fullName" placeholder="Full Name" class="auth-input" required>
+                        </div>
+                    </div>
+                    
+                    <div class="input-container">
+                        <div class="input-wrapper">
+                            <i class="fas fa-envelope input-icon"></i>
+                            <input type="email" id="email" placeholder="Email address" class="auth-input" required>
+                        </div>
+                    </div>
+                    
+                    <div class="input-container">
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" id="password" placeholder="Password" class="auth-input" required minlength="6">
+                            <i class="fas fa-eye toggle-password" id="togglePassword"></i>
+                        </div>
+                        <div class="password-strength" id="passwordStrength">
+                            <div class="strength-bar"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="input-container">
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock input-icon"></i>
+                            <input type="password" id="confirmPassword" placeholder="Confirm Password" class="auth-input" required>
+                            <i class="fas fa-eye toggle-password" id="toggleConfirmPassword"></i>
+                        </div>
+                    </div>
+
+                    <div class="terms-container">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="terms" required>
+                            <span class="checkmark"></span>
+                            <span class="terms-text">I agree to the <a href="#" class="terms-link">Terms of Service</a> and <a href="#" class="terms-link">Privacy Policy</a></span>
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="auth-button">
+                        <span class="button-text">Create Account</span>
+                        <i class="fas fa-arrow-right button-icon"></i>
+                    </button>
+                </form>
+                
+                <div class="auth-footer">
+                    <p>Already have an account? <a href="/login" class="auth-link">Log in</a></p>
+                </div>
+            </section>
+        </main>
+
+        <script>
+            // Logo click navigation
+            document.querySelector('.logo-container').addEventListener('click', function() {
+                window.location.href = '/';
+            });
+
+            // Password visibility toggles
+            document.getElementById('togglePassword').addEventListener('click', function() {
+                togglePasswordVisibility('password', this);
+            });
+
+            document.getElementById('toggleConfirmPassword').addEventListener('click', function() {
+                togglePasswordVisibility('confirmPassword', this);
+            });
+
+            function togglePasswordVisibility(inputId, icon) {
+                const input = document.getElementById(inputId);
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                } else {
+                    input.type = 'password';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                }
+            }
+
+            // Password strength indicator
+            document.getElementById('password').addEventListener('input', function() {
+                const password = this.value;
+                const strengthBar = document.querySelector('.strength-bar');
+                const container = document.getElementById('passwordStrength');
+                
+                if (password.length === 0) {
+                    container.style.opacity = '0';
+                    return;
+                }
+                
+                container.style.opacity = '1';
+                let strength = 0;
+                
+                if (password.length >= 6) strength++;
+                if (password.length >= 10) strength++;
+                if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+                if (/\d/.test(password)) strength++;
+                if (/[^a-zA-Z\d]/.test(password)) strength++;
+                
+                strengthBar.className = 'strength-bar';
+                
+                if (strength <= 2) {
+                    strengthBar.classList.add('weak');
+                } else if (strength <= 3) {
+                    strengthBar.classList.add('medium');
+                } else {
+                    strengthBar.classList.add('strong');
+                }
+                
+                strengthBar.style.width = (strength * 20) + '%';
+            });
+
+            // Form submission
+            document.getElementById('registerForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const fullName = document.getElementById('fullName').value;
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+                const terms = document.getElementById('terms').checked;
+                
+                // Validation
+                if (password !== confirmPassword) {
+                    alert('Passwords do not match!');
+                    return;
+                }
+                
+                if (!terms) {
+                    alert('Please accept the Terms of Service and Privacy Policy');
+                    return;
+                }
+                
+                if (password.length < 6) {
+                    alert('Password must be at least 6 characters long');
+                    return;
+                }
+                
+                // Show loading state
+                const button = document.querySelector('.auth-button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
+                button.disabled = true;
+                
+                try {
+                    const response = await fetch('/register', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            name: fullName,
+                            email, 
+                            password 
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        // Show success message
+                        button.innerHTML = '<i class="fas fa-check"></i> Success!';
+                        button.style.backgroundColor = '#10b981';
+                        
+                        // Redirect after short delay
+                        setTimeout(() => {
+                            window.location.href = result.redirect || '/main-redesigned.html';
+                        }, 1000);
+                    } else {
+                        alert(result.message || 'Registration failed. Please try again.');
+                        button.innerHTML = originalText;
+                        button.disabled = false;
+                    }
+                } catch (error) {
+                    console.error('Registration error:', error);
+                    alert('An error occurred. Please try again.');
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }
+            });
+
+            // Real-time email validation
+            document.getElementById('email').addEventListener('blur', function() {
+                const email = this.value;
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                
+                if (email && !emailRegex.test(email)) {
+                    this.style.borderColor = '#ef4444';
+                } else {
+                    this.style.borderColor = '#7d7c7c';
+                }
+            });
+
+            // Real-time password match validation
+            document.getElementById('confirmPassword').addEventListener('input', function() {
+                const password = document.getElementById('password').value;
+                const confirmPassword = this.value;
+                
+                if (confirmPassword && password !== confirmPassword) {
+                    this.style.borderColor = '#ef4444';
+                } else {
+                    this.style.borderColor = '#7d7c7c';
+                }
+            });
+        </script>
+    </body>
+</html>

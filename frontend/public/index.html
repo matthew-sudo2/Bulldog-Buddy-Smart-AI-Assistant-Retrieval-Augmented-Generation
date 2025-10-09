@@ -425,6 +425,37 @@
             document.querySelector('.logo-container').addEventListener('click', function() {
                 window.location.href = '/';
             });
+
+            // Check for logout success parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('logout') === 'success') {
+                showLogoutToast();
+                // Clean up URL
+                window.history.replaceState({}, document.title, '/');
+            }
+
+            function showLogoutToast() {
+                const toast = document.createElement('div');
+                toast.className = 'logout-toast';
+                toast.innerHTML = `
+                    <i class="fas fa-check-circle"></i>
+                    <span>You've been logged out successfully</span>
+                `;
+                document.body.appendChild(toast);
+
+                // Trigger animation
+                setTimeout(() => {
+                    toast.classList.add('show');
+                }, 100);
+
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => {
+                        document.body.removeChild(toast);
+                    }, 300);
+                }, 3000);
+            }
         </script>
     </body>
 </html>

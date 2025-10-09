@@ -115,6 +115,10 @@ app.get('/login', redirectIfLoggedIn, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+app.get('/register', redirectIfLoggedIn, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'register.html'));
+});
+
 app.get('/username', (req, res) => {
     if (!req.session.tempEmail) {
         return res.redirect('/');
@@ -403,6 +407,93 @@ app.post('/complete-registration', requireDB, async (req, res) => {
             return res.status(400).json({ 
                 success: false, 
                 message: error.message
+            });
+        }
+
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Server error occurred during registration' 
+        });
+    }
+});
+
+// Register endpoint - dedicated for new register page
+app.post('/register', requireDB, async (req, res) => {
+    try {
+        const { name, email, password } = req.body;
+
+        // Validation
+        if (!name || !email || !password) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'All fields are required' 
+            });
+        }
+
+        if (name.trim().length < 2) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Name must be at least 2 characters long' 
+            });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Password must be at least 6 characters long' 
+            });
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Please enter a valid email address' 
+            });
+        }
+
+        // Check if user already exists
+        const existingUser = await UserModel.findByEmail(email.toLowerCase());
+        if (existingUser) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Email is already registered. Please log in instead.' 
+            });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 12);
+
+        // Create new user
+        const newUser = await UserModel.create({
+            email: email.toLowerCase(),
+            username: name.trim(),
+            password_hash: hashedPassword,
+            google_id: null
+        });
+
+        console.log('New user registered via register page:', newUser.email);
+
+        // Update login info
+        const sessionId = `register_${newUser.id}_${Date.now()}`;
+        await UserModel.updateLogin(newUser.id, sessionId);
+
+        // Set session
+        req.session.userId = newUser.id;
+
+        return res.json({ 
+            success: true, 
+            redirect: '/main-redesigned' 
+        });
+
+    } catch (error) {
+        console.error('Registration error:', error);
+        
+        // Handle PostgreSQL unique constraint violations
+        if (error.message.includes('already exists')) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'This email or username is already registered'
             });
         }
 

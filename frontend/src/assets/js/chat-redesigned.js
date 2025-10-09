@@ -999,8 +999,8 @@ async function handleLogout() {
             localStorage.clear();
             sessionStorage.clear();
             
-            // Redirect to login page
-            window.location.href = '/login.html';
+            // Redirect to landing page with logout success parameter
+            window.location.href = '/?logout=success';
         } else {
             showNotification('Logout failed. Please try again.', 'error');
         }
