@@ -105,6 +105,13 @@ header {
     color: #132c6f;
     margin-bottom: 10px;
     font-weight: 500;
+    font-family: 'Now', sans-serif;
+    letter-spacing: -0.5px;
+}
+
+.hero h1 .introducing-text {
+    color: #333333;
+    font-weight: 400;
 }
 
 .hero p {
@@ -123,40 +130,51 @@ header {
     transition: all 0.3s ease;
     font-weight: 600;
     border-radius: 40px;
-    border: 2px solid #132c6f;
     box-shadow: 0 3px 15px rgba(19, 44, 111, 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .tryNow-button {
     background-color: #132c6f;
     color: white;
+    border: 2px solid #132c6f;
 }
 
 .tryNow-button:hover {
-    background-color: #cb9650;
-    border-color: #cb9650;
+    background-color: #0f2454;
+    border-color: #0f2454;
     transform: translateY(-3px);
-    box-shadow: 0 5px 20px rgba(203, 150, 80, 0.3);
+    box-shadow: 0 5px 20px rgba(19, 44, 111, 0.4);
 }
 
 .services-button {
-    background-color: white;
-    color: #132c6f;
+    background-color: #cb9650;
+    color: white;
+    border: 2px solid #cb9650;
 }
 
 .services-button:hover {
-    background-color: #132c6f;
-    color: white;
+    background-color: #b08040;
+    border-color: #b08040;
     transform: translateY(-3px);
+    box-shadow: 0 5px 20px rgba(203, 150, 80, 0.4);
 }
 
 .arrow-up {
     transform: rotate(45deg);
-    width: 14px;
-    height: 14px;
-    margin-left: 8px;
+    width: 16px;
+    height: 16px;
     display: inline-block;
     vertical-align: middle;
+    filter: brightness(0) invert(1);
+    transition: transform 0.3s ease;
+}
+
+.tryNow-button:hover .arrow-up,
+.services-button:hover .arrow-up {
+    transform: rotate(45deg) translate(2px, -2px);
 }
 
 .hero-buttons {
@@ -169,20 +187,20 @@ header {
 .left-illustration,
 .right-illustration {
     position: absolute;
-    height: 240px;
+    height: 320px;
     object-fit: contain;
     z-index: 0;
     transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .left-illustration {
-    bottom: 90px;
-    left: 110px;
+    bottom: 60px;
+    left: 80px;
 }
 
 .right-illustration {
-    bottom: 80px;
-    right: 120px;
+    bottom: 50px;
+    right: 90px;
 }
 
 .left-illustration:hover,
@@ -248,41 +266,51 @@ header {
 }
 
 .footer-content {
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
-}
-
-.footer-content > div:first-child {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 50px;
-    margin-bottom: 40px;
+    gap: 80px;
+    margin-bottom: 50px;
+}
+
+.footer-column {
+    display: flex;
+    flex-direction: column;
 }
 
 .footer-column h4 {
-    font-size: 20px;
-    margin-bottom: 20px;
+    font-size: 22px;
+    margin-bottom: 25px;
     color: #cb9650;
+    font-weight: 700;
+    letter-spacing: 0.5px;
 }
 
 .footer-column ul {
     list-style: none;
     padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .footer-column li {
-    margin-bottom: 12px;
+    margin-bottom: 0;
 }
 
 .footer-column a {
-    color: white;
+    color: rgba(255, 255, 255, 0.85);
     text-decoration: none;
     font-size: 15px;
-    transition: color 0.3s ease;
+    transition: all 0.3s ease;
+    display: inline-block;
+    padding: 4px 0;
 }
 
 .footer-column a:hover {
     color: #cb9650;
+    transform: translateX(5px);
 }
 
 .footer-bottom {
@@ -322,9 +350,9 @@ header {
 /* Animations */
 .fade-in {
     opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94), 
-                transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transform: translateY(30px);
+    transition: opacity 1s cubic-bezier(0.25, 0.46, 0.45, 0.94), 
+                transform 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .fade-in.appear {
@@ -346,13 +374,13 @@ header {
 /* Responsive Design */
 @media (max-width: 1200px) {
     .left-illustration {
-        left: 60px;
-        height: 200px;
+        left: 40px;
+        height: 280px;
     }
 
     .right-illustration {
-        right: 60px;
-        height: 200px;
+        right: 40px;
+        height: 280px;
     }
 }
 
@@ -375,17 +403,17 @@ header {
 
     .left-illustration,
     .right-illustration {
-        height: 150px;
+        height: 200px;
     }
 
     .left-illustration {
-        left: 10px;
-        bottom: 70px;
+        left: 5px;
+        bottom: 60px;
     }
 
     .right-illustration {
-        right: 10px;
-        bottom: 70px;
+        right: 5px;
+        bottom: 60px;
     }
 
     .services-section {
@@ -401,9 +429,10 @@ header {
         padding: 40px 20px 20px;
     }
 
-    .footer-content > div:first-child {
+    .footer-content {
         grid-template-columns: 1fr;
-        gap: 30px;
+        gap: 40px;
+        margin-bottom: 30px;
     }
 
     .footer-bottom {
@@ -434,6 +463,6 @@ header {
 
     .left-illustration,
     .right-illustration {
-        height: 120px;
+        height: 160px;
     }
 }
