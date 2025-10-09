@@ -137,6 +137,9 @@ function setupEventListeners() {
     document.getElementById('btnExport').addEventListener('click', exportConversations);
     document.getElementById('btnImport').addEventListener('click', importConversations);
 
+    // Logout
+    document.getElementById('btnLogout').addEventListener('click', handleLogout);
+
     // Sidebar toggle (mobile)
     document.getElementById('sidebarToggle').addEventListener('click', function() {
         document.querySelector('.sidebar').classList.toggle('active');
@@ -975,6 +978,36 @@ function importConversations() {
     };
     
     input.click();
+}
+
+async function handleLogout() {
+    try {
+        // Show confirmation dialog
+        const confirmed = confirm('Are you sure you want to logout?');
+        if (!confirmed) return;
+
+        // Call logout endpoint
+        const response = await fetch('/logout', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            // Clear any local storage
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Redirect to login page
+            window.location.href = '/login.html';
+        } else {
+            showNotification('Logout failed. Please try again.', 'error');
+        }
+    } catch (error) {
+        console.error('Logout error:', error);
+        showNotification('Logout failed. Please try again.', 'error');
+    }
 }
 
 // ============================================================================

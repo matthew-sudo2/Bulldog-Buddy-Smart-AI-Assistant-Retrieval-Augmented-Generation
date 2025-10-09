@@ -111,7 +111,7 @@ header {
 
 .hero h1 .introducing-text {
     color: #333333;
-    font-weight: 400;
+    font-weight: 700;
 }
 
 .hero p {
@@ -195,12 +195,12 @@ header {
 
 .left-illustration {
     bottom: 60px;
-    left: 80px;
+    left: 180px;
 }
 
 .right-illustration {
     bottom: 50px;
-    right: 90px;
+    right: 190px;
 }
 
 .left-illustration:hover,
@@ -227,12 +227,15 @@ header {
     background-color: white;
     border-radius: 15px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    cursor: pointer;
+    border: 2px solid transparent;
 }
 
 .service-box:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.15);
+    transform: translateY(-10px) scale(1.02);
+    box-shadow: 0 10px 30px rgba(19, 44, 111, 0.25);
+    border-color: #132c6f;
 }
 
 .service-image,
@@ -242,6 +245,13 @@ header {
     height: 160px;
     margin: 0 auto 0px;
     display: block;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.service-box:hover .service-image,
+.service-box:hover .guide-image,
+.service-box:hover .connect-image {
+    transform: scale(1.1);
 }
 
 .service-box h3 {
@@ -249,6 +259,11 @@ header {
     font-weight: 700;
     color: #132c6f;
     margin-bottom: 20px;
+    transition: color 0.3s ease;
+}
+
+.service-box:hover h3 {
+    color: #cb9650;
 }
 
 .service-box p {
@@ -374,12 +389,12 @@ header {
 /* Responsive Design */
 @media (max-width: 1200px) {
     .left-illustration {
-        left: 40px;
+        left: 130px;
         height: 280px;
     }
 
     .right-illustration {
-        right: 40px;
+        right: 140px;
         height: 280px;
     }
 }
@@ -407,12 +422,12 @@ header {
     }
 
     .left-illustration {
-        left: 5px;
+        left: 60px;
         bottom: 60px;
     }
 
     .right-illustration {
-        right: 5px;
+        right: 70px;
         bottom: 60px;
     }
 
@@ -464,5 +479,13 @@ header {
     .left-illustration,
     .right-illustration {
         height: 160px;
+    }
+
+    .left-illustration {
+        left: 40px;
+    }
+
+    .right-illustration {
+        right: 50px;
     }
 }
