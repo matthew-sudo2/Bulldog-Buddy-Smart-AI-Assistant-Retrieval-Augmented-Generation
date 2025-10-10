@@ -3,7 +3,7 @@ Enhanced API Bridge Server - Full Streamlit Feature Integration
 Connects the Express frontend to all backend functionality
 """
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -333,14 +333,17 @@ async def update_conversation(session_id: str, update: ConversationUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/conversations/{session_id}")
-async def delete_conversation(session_id: str):
+async def delete_conversation(session_id: str, user_id: int = Query(default=1)):
     """Delete a conversation"""
     if not conversation_manager:
         raise HTTPException(status_code=503, detail="Conversation manager not available")
     
     try:
-        conversation_manager.delete_conversation_session(session_id)
-        return {"success": True}
+        success = conversation_manager.delete_conversation(session_id, user_id)
+        if success:
+            return {"success": True}
+        else:
+            raise HTTPException(status_code=404, detail="Conversation not found or already deleted")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
