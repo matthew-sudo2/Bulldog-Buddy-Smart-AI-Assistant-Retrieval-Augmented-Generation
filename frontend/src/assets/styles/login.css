@@ -79,7 +79,7 @@ header {
     align-items: center;
     justify-content: center;
     padding: 25px 20px 40px 20px; /* Increased top padding to 30px */
-    margin-top: 0; /* Removed negative margin */
+    margin-top: -15px; /* Removed negative margin */
 }
 
 .auth-container {
@@ -168,22 +168,31 @@ header {
 
 /* Google Login */
 .g_id_signin {
-    transform: scale(1.1);
-    display: flex;
-    justify-content: center;
-    margin-top: 1.5rem;
-    margin-bottom: 1rem;
+    display: flex !important;
+    justify-content: center !important;
+    width: 80% !important;
+    margin: 0 auto !important;
+    border: 1px solid #7d7c7c !important;
+    border-radius: 90px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background-color: transparent !important;
+    height: auto !important;
+
 }
 
-.google-login {
-    display: flex;
-    justify-content: center;
-    width: 100%;
+.g_id_signin > div {
+    width: 100% !important;
+    border-radius: 0 !important;
+    border: none !important;
+    background-color: transparent !important;
 }
 
-.auth-container .g_id_signin {
-    width: 100%;
-    max-width: 350px;
+/* Remove the existing transform scale */
+.g_id_signin {
+    transform: none !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
 }
 
 /* Responsive Design */

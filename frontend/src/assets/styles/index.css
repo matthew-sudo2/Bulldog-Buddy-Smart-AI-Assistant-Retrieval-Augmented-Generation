@@ -101,10 +101,11 @@ header {
 
 .hero h1 {
     position: relative;
-    font-size: 56px;
+    font-size: 53px;
     color: #132c6f;
     margin-bottom: 10px;
-    font-weight: 500;
+    font-weight: 703;
+    line-height: 120%;
 }
 
 .hero p {
@@ -116,15 +117,19 @@ header {
 
 .tryNow-button,
 .services-button {
+    padding: 11px 22px;
+    border: black 1.5px solid;
+    border-radius: 25px;
     font-size: 16px;
-    padding: 12px 35px;
-    margin: 0 10px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
-    font-weight: 600;
-    border-radius: 40px;
-    border: 2px solid #132c6f;
-    box-shadow: 0 3px 15px rgba(19, 44, 111, 0.2);
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
 }
 
 .tryNow-button {
@@ -133,30 +138,29 @@ header {
 }
 
 .tryNow-button:hover {
-    background-color: #cb9650;
-    border-color: #cb9650;
-    transform: translateY(-3px);
-    box-shadow: 0 5px 20px rgba(203, 150, 80, 0.3);
+    background-color: #1a4f9e;
+    transform: translateY(-2px);
 }
 
 .services-button {
-    background-color: white;
-    color: #132c6f;
+    background-color: #cb9650;
+    color: white;
 }
 
 .services-button:hover {
-    background-color: #132c6f;
-    color: white;
-    transform: translateY(-3px);
+    background-color: #cc8c2b;
+    transform: translateY(-2px);
 }
 
 .arrow-up {
-    transform: rotate(45deg);
-    width: 14px;
-    height: 14px;
-    margin-left: 8px;
-    display: inline-block;
-    vertical-align: middle;
+    width: 22px;
+    height: 22px;
+    transition: transform 0.3s ease;
+}
+
+.tryNow-button:hover .arrow-up, 
+.services-button:hover .arrow-up {
+    transform: translateX(3px);
 }
 
 .hero-buttons {
@@ -240,83 +244,86 @@ header {
     max-width: 240px;
     margin: 0 auto;
 }
+
 /* Footer */
 .site-footer {
     background-color: #132c6f;
     color: white;
-    padding: 60px 110px 30px;
+    padding: 60px 60px 30px;
 }
 
 .footer-content {
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
-.footer-content > div:first-child {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 50px;
-    margin-bottom: 40px;
+    gap: 60px;
+    max-width: 1200px;
+    margin: 0 auto 50px;
 }
 
 .footer-column h4 {
-    font-size: 20px;
-    margin-bottom: 20px;
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 25px;
     color: #cb9650;
 }
 
 .footer-column ul {
     list-style: none;
-    padding: 0;
 }
 
-.footer-column li {
+.footer-column ul li {
     margin-bottom: 12px;
 }
 
-.footer-column a {
-    color: white;
+.footer-column ul li a {
+    color: #e2e8f0;
     text-decoration: none;
     font-size: 15px;
     transition: color 0.3s ease;
 }
 
-.footer-column a:hover {
-    color: #cb9650;
+.footer-column ul li a:hover {
+    color: white;
 }
 
 .footer-bottom {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    border-top: 1px solid #3182ce;
     padding-top: 30px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
 .social-icons {
     display: flex;
     gap: 20px;
+    margin-bottom: 15px;
 }
 
-.social-link {
+.social-icons a {
+    display: inline-block;
+    transition: transform 0.3s ease;
     color: white;
-    font-size: 20px;
-    transition: all 0.3s ease;
+    font-size: 24px;
+    scale: 1.2;
 }
 
-.social-link:hover {
-    color: #cb9650;
+.social-icons a:hover {
     transform: translateY(-3px);
+    color: #e2e8f0;
 }
 
 .copyright {
-    text-align: right;
+    text-align: center;
 }
 
 .copyright p {
-    margin: 5px 0;
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    color: #e2e8f0;
+    margin: 2px 0;
 }
 
 /* Animations */
