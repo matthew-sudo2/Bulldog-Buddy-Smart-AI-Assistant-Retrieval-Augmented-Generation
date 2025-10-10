@@ -10,6 +10,7 @@ try:
 except ImportError:
     from database import BulldogBuddyDatabase
 import json
+from psycopg2.extras import RealDictCursor
 
 # Available profile icons (emoji-based)
 PROFILE_ICONS = {
@@ -141,7 +142,7 @@ def get_user_settings(user_id: int) -> Dict:
         db = BulldogBuddyDatabase()
         conn = db.get_connection()
         
-        with conn.cursor() as cur:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
                 SELECT profile_icon, color_theme, personality_type, response_length,
                        custom_instructions, notifications_enabled
@@ -155,33 +156,51 @@ def get_user_settings(user_id: int) -> Dict:
         
         if result:
             return {
-                "profile_icon": result.get("profile_icon", "🐶"),
-                "color_theme": result.get("color_theme", "university"), 
-                "personality_type": result.get("personality_type", "friendly"),
-                "response_length": result.get("response_length", "moderate"),
-                "custom_instructions": result.get("custom_instructions", ""),
-                "notifications_enabled": result.get("notifications_enabled", True)
+                "settings": {
+                    "profileIcon": result.get("profile_icon", "🐶"),
+                    "theme": result.get("color_theme", "university"), 
+                    "personality": result.get("personality_type", "friendly"),
+                    "responseLength": result.get("response_length", "balanced"),
+                    "customInstructions": result.get("custom_instructions", ""),
+                    "notificationsEnabled": result.get("notifications_enabled", True),
+                    "showConfidence": True,
+                    "showSources": True,
+                    "showTimestamps": True
+                }
             }
         else:
             # Return default settings
             return {
-                "profile_icon": "🐶",
-                "color_theme": "university",
-                "personality_type": "friendly", 
-                "response_length": "moderate",
-                "custom_instructions": "",
-                "notifications_enabled": True
+                "settings": {
+                    "profileIcon": "🐶",
+                    "theme": "university",
+                    "personality": "friendly", 
+                    "responseLength": "balanced",
+                    "customInstructions": "",
+                    "notificationsEnabled": True,
+                    "showConfidence": True,
+                    "showSources": True,
+                    "showTimestamps": True
+                }
             }
             
     except Exception as e:
         print(f"Error loading settings: {e}")  # Use print instead of st.error for non-Streamlit contexts
-        return {}
+        return {"settings": {}}
 
 def save_user_settings(user_id: int, settings: Dict) -> bool:
     """Save user personalization settings to database"""
     try:
         db = BulldogBuddyDatabase()
         conn = db.get_connection()
+        
+        # Map new settings keys to database columns
+        profile_icon = settings.get("profile_icon", settings.get("profileIcon", "🐶"))
+        color_theme = settings.get("color_theme", settings.get("theme", "university"))
+        personality_type = settings.get("personality_type", settings.get("personality", "friendly"))
+        response_length = settings.get("response_length", settings.get("responseLength", "moderate"))
+        custom_instructions = settings.get("custom_instructions", settings.get("customInstructions", ""))
+        notifications_enabled = settings.get("notifications_enabled", settings.get("notificationsEnabled", True))
         
         with conn.cursor() as cur:
             cur.execute("""
@@ -194,12 +213,12 @@ def save_user_settings(user_id: int, settings: Dict) -> bool:
                     notifications_enabled = %s
                 WHERE id = %s
             """, (
-                settings.get("profile_icon", "🐶"),
-                settings.get("color_theme", "university"),
-                settings.get("personality_type", "friendly"),
-                settings.get("response_length", "moderate"),
-                settings.get("custom_instructions", ""),
-                settings.get("notifications_enabled", True),
+                profile_icon,
+                color_theme,
+                personality_type,
+                response_length,
+                custom_instructions,
+                notifications_enabled,
                 user_id
             ))
             

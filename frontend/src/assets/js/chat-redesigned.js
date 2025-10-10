@@ -35,15 +35,22 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 async function init() {
     try {
-        // Get current user
+        // Get current user - MUST be authenticated to proceed
         const response = await fetch('/api/user');
         if (response.ok) {
             currentUser = await response.json();
-            console.log('User loaded:', currentUser);
+            console.log('✅ User loaded:', currentUser);
+            
+            if (!currentUser || !currentUser.id) {
+                console.error('❌ Invalid user data received');
+                window.location.href = '/login';
+                return;
+            }
         } else {
-            console.warn('User authentication failed, using fallback user for testing');
-            // Use fallback user for testing when not authenticated
-            currentUser = { id: 1, username: 'admin', email: 'admin@bulldogbuddy.com' };
+            console.error('❌ User authentication failed:', response.status);
+            // Redirect to login if not authenticated
+            window.location.href = '/login';
+            return;
         }
 
         // Load user settings
@@ -177,6 +184,13 @@ async function loadSettings() {
 
 async function saveSettings() {
     try {
+        // Ensure user is authenticated
+        if (!currentUser || !currentUser.id) {
+            console.error('❌ No authenticated user found');
+            window.location.href = '/login';
+            return;
+        }
+        
         // Gather settings from modal
         userSettings.personality = document.getElementById('personalitySelect').value;
         userSettings.responseLength = document.getElementById('responseLengthSelect').value;
@@ -184,16 +198,21 @@ async function saveSettings() {
         userSettings.showSources = document.getElementById('showSources').checked;
         userSettings.showTimestamps = document.getElementById('showTimestamps').checked;
 
+        console.log('💾 Saving settings:', userSettings);
+
         const response = await fetch(`${API_BASE}/settings/${currentUser.id}`, {
-            method: 'POST',
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ settings: userSettings })
+            body: JSON.stringify(userSettings)
         });
 
         if (response.ok) {
             showNotification('Settings saved successfully!', 'success');
+            applyTheme(userSettings.theme);
             closeSettings();
         } else {
+            const errorText = await response.text();
+            console.error('Failed to save settings:', errorText);
             showNotification('Failed to save settings', 'error');
         }
     } catch (error) {
@@ -267,7 +286,15 @@ function closeSettings() {
 async function loadConversations() {
     try {
         console.log('📋 Loading conversations...');
-        const userId = currentUser ? currentUser.id : 1; // fallback to user 1
+        
+        // Ensure user is authenticated
+        if (!currentUser || !currentUser.id) {
+            console.error('❌ No authenticated user found');
+            window.location.href = '/login';
+            return;
+        }
+        
+        const userId = currentUser.id;
         console.log('👤 Using user ID:', userId);
         
         const apiUrl = `${API_BASE}/conversations/user/${userId}`;
@@ -347,6 +374,13 @@ function renderConversationsList() {
 async function createNewConversation() {
     try {
         console.log('➕ Creating new conversation for user:', currentUser);
+        
+        // Ensure user is authenticated
+        if (!currentUser || !currentUser.id) {
+            console.error('❌ No authenticated user found');
+            window.location.href = '/login';
+            return;
+        }
         
         // Check if there's already an empty "New Conversation" at the top
         if (conversations.length > 0 && 
@@ -440,8 +474,15 @@ function updateCurrentConversationMetadata(userMessage, assistantResponse) {
 async function loadConversationMessages(sessionId) {
     try {
         console.log('🔍 Loading messages for session:', sessionId);
-        // Include user_id parameter as required by API
-        const userId = currentUser ? currentUser.id : 1; // fallback to user 1
+        
+        // Ensure user is authenticated
+        if (!currentUser || !currentUser.id) {
+            console.error('❌ No authenticated user found');
+            window.location.href = '/login';
+            return;
+        }
+        
+        const userId = currentUser.id;
         console.log('👤 Using user ID:', userId);
         
         const apiUrl = `${API_BASE}/conversations/${sessionId}/messages?user_id=${userId}`;
@@ -509,7 +550,15 @@ async function deleteConversation(sessionId) {
     
     try {
         console.log('🗑️ Deleting conversation:', sessionId);
-        const userId = currentUser ? currentUser.id : 1;
+        
+        // Ensure user is authenticated
+        if (!currentUser || !currentUser.id) {
+            console.error('❌ No authenticated user found');
+            window.location.href = '/login';
+            return;
+        }
+        
+        const userId = currentUser.id;
         console.log('👤 Current user:', currentUser);
         console.log('🔑 Using user_id:', userId);
         
@@ -625,6 +674,13 @@ async function sendMessage() {
     
     if (!message) return;
     
+    // Ensure user is authenticated
+    if (!currentUser || !currentUser.id) {
+        console.error('❌ No authenticated user found');
+        window.location.href = '/login';
+        return;
+    }
+    
     // Add user message to UI
     addMessageToUI('user', message, new Date().toISOString());
     
@@ -659,6 +715,28 @@ async function sendMessage() {
         if (response.ok) {
             const data = await response.json();
             console.log('📥 Chat response:', data);
+            
+            // CRITICAL: Update currentSession if backend created/changed it
+            if (data.session_id && data.session_id !== currentSession) {
+                console.log(`🔄 Session updated: ${currentSession} → ${data.session_id}`);
+                currentSession = data.session_id;
+                
+                // Check if this session exists in our conversations list
+                const existsInList = conversations.some(c => c.session_uuid === currentSession);
+                if (!existsInList) {
+                    console.log('➕ Adding new session to conversations list');
+                    // Add to conversations list
+                    conversations.unshift({
+                        session_uuid: currentSession,
+                        title: 'New Conversation',
+                        preview: message.substring(0, 100),
+                        message_count: 1,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    });
+                    renderConversationsList();
+                }
+            }
             
             addMessageToUI(
                 'assistant',

@@ -175,7 +175,7 @@ class ConversationHistoryManager:
                 SELECT 
                     cs.session_uuid,
                     cs.title,
-                    cs.pinned,
+                    cs.is_pinned,
                     cs.created_at,
                     cs.updated_at,
                     COUNT(cm.id) as message_count,
@@ -186,8 +186,8 @@ class ConversationHistoryManager:
                 FROM conversation_sessions cs
                 LEFT JOIN conversation_messages cm ON cs.id = cm.session_id
                 WHERE cs.user_id = %s
-                GROUP BY cs.id, cs.session_uuid, cs.title, cs.pinned, cs.created_at, cs.updated_at
-                ORDER BY cs.pinned DESC, cs.updated_at DESC
+                GROUP BY cs.id, cs.session_uuid, cs.title, cs.is_pinned, cs.created_at, cs.updated_at
+                ORDER BY cs.is_pinned DESC, cs.updated_at DESC
                 LIMIT %s
             """
             
@@ -198,7 +198,7 @@ class ConversationHistoryManager:
                 sessions.append({
                     'session_uuid': row['session_uuid'],
                     'title': row['title'],
-                    'pinned': row['pinned'] or False,
+                    'pinned': row['is_pinned'] or False,
                     'created_at': row['created_at'],
                     'updated_at': row['updated_at'],
                     'message_count': row['message_count'],
@@ -363,24 +363,33 @@ class ConversationHistoryManager:
         """
         Delete a conversation session and all its messages
         """
+        conn = None
         try:
-            query = """
-                DELETE FROM conversation_sessions 
-                WHERE session_uuid = %s AND user_id = %s
-            """
-            
-            success = self.db.execute_query(query, (session_uuid, user_id), fetch=False)
-            
-            if success:
-                self.logger.info(f"Deleted conversation session {session_uuid}")
-                return True
-            else:
-                self.logger.error("Failed to delete conversation session")
-                return False
+            conn = self.db.get_connection()
+            with conn.cursor() as cur:
+                query = """
+                    DELETE FROM conversation_sessions 
+                    WHERE session_uuid = %s AND user_id = %s
+                """
+                cur.execute(query, (session_uuid, user_id))
+                rows_deleted = cur.rowcount
+                conn.commit()
                 
+                if rows_deleted > 0:
+                    self.logger.info(f"Deleted conversation session {session_uuid} (user {user_id})")
+                    return True
+                else:
+                    self.logger.warning(f"No conversation found to delete: {session_uuid} (user {user_id})")
+                    return False
+                    
         except Exception as e:
+            if conn:
+                conn.rollback()
             self.logger.error(f"Error deleting conversation: {e}")
             return False
+        finally:
+            if conn:
+                self.db.return_connection(conn)
     
     def cleanup_old_conversations(self, user_id: int, days_old: int = 90) -> int:
         """

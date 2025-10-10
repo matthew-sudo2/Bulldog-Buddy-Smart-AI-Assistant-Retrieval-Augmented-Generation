@@ -148,10 +148,12 @@ This will automatically start:
 Open your browser and navigate to:
 - **Main Application**: http://localhost:3000
 
-### Test Login Credentials
+### First Time Setup
 
-- **Email**: `test@example.com`
-- **Password**: `testpassword123`
+After starting the system for the first time:
+1. Navigate to http://localhost:3000
+2. Click "Sign Up" to create your account
+3. Or use Google OAuth to sign in
 
 ### Stop the System
 
@@ -171,14 +173,17 @@ Then close the PowerShell/Terminal windows that were opened.
 - Host: `localhost`
 - Port: `5432`
 - Database: `bulldog_buddy`
-- User: `postgres`
-- Password: `bulldog_buddy_password_2025`
+- User: See `.env` file
+- Password: See `.env` file
 
 **Database Management Tools:**
 - **pgAdmin**: http://localhost:8080
-  - Email: `admin@bulldogbuddy.com`
-  - Password: `admin123`
+  - Credentials: Check your `.env` file or `docker-compose.yml`
 - **Adminer**: http://localhost:8081
+  - Use PostgreSQL credentials from `.env`
+
+> ⚠️ **Security Note**: Default credentials are for local development only.  
+> For production deployment, change all passwords in `.env` and `docker-compose.yml`.
 
 ### API Endpoints
 
@@ -191,8 +196,8 @@ Then close the PowerShell/Terminal windows that were opened.
 Edit `.env` file to customize:
 
 ```ini
-# Database
-DATABASE_URL=postgresql://postgres:bulldog_buddy_password_2025@localhost:5432/bulldog_buddy
+# Database Configuration
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/bulldog_buddy
 PGVECTOR_DIMENSION=768
 
 # API Bridge
@@ -203,7 +208,10 @@ FRONTEND_PORT=3000
 
 # Google OAuth (optional)
 GOOGLE_CLIENT_ID=your_client_id_here
+GOOGLE_CLIENT_SECRET=your_client_secret_here
 ```
+
+> 📝 **Note**: Copy `.env.example` to `.env` and update with your values.
 
 ---
 
@@ -228,7 +236,7 @@ Click the settings icon to customize:
 
 1. Go to http://localhost:3000
 2. Click "Sign Up"
-3. Enter email and create password
+3. Enter your email and create a secure password
 4. Set your display name
 5. Start chatting!
 

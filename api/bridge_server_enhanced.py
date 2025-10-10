@@ -114,6 +114,13 @@ class ConversationUpdate(BaseModel):
     is_pinned: Optional[bool] = None
 
 class SettingsUpdate(BaseModel):
+    theme: Optional[str] = None
+    personality: Optional[str] = None
+    responseLength: Optional[str] = None
+    showConfidence: Optional[bool] = None
+    showSources: Optional[bool] = None
+    showTimestamps: Optional[bool] = None
+    # Legacy support
     color_theme: Optional[str] = None
     personality_type: Optional[str] = None
     response_length: Optional[str] = None
@@ -300,21 +307,22 @@ async def get_user_conversations(user_id: int, limit: int = 50):
         raise HTTPException(status_code=503, detail="Conversation manager not available")
     
     try:
-        conversations = conversation_manager.get_user_conversations(user_id, limit=limit)
+        conversations = conversation_manager.get_user_sessions(user_id, limit=limit)
         return {"conversations": conversations}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/conversations/{session_id}/messages")
-async def get_conversation_messages(session_id: str):
+async def get_conversation_messages(session_id: str, user_id: int = Query(default=1)):
     """Get all messages in a conversation"""
     if not conversation_manager:
         raise HTTPException(status_code=503, detail="Conversation manager not available")
     
     try:
-        messages = conversation_manager.get_conversation_messages(session_id)
+        messages = conversation_manager.get_session_messages(session_id, user_id)
         return {"messages": messages}
     except Exception as e:
+        logger.error(f"Error getting messages for session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/conversations/{session_id}")

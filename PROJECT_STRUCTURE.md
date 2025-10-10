@@ -4,12 +4,10 @@
 
 ```
 Paw-sitive AI/
-├── .env                        # Environment configuration
-├── .env.example                # Environment template
-├── check_system.py             # System health check utility
-├── start_all.bat               # Main system launcher (Windows)
-├── start_system.py             # Python-based launcher
-├── test_registration.py        # Registration endpoint testing
+├── .env                        # Environment configuration (DO NOT COMMIT)
+├── .env.example                # Environment template (safe to commit)
+├── start.py                    # Main system launcher
+├── stop.py                     # System shutdown utility
 ├── core/                       # Core application modules
 │   ├── __init__.py
 │   ├── auth.py                # Authentication system
@@ -40,6 +38,11 @@ Paw-sitive AI/
 │   ├── init.sql               # Database schema initialization
 │   └── requirements.txt       # Python dependencies
 ├── scripts/                    # Utility and maintenance scripts
+│   ├── migrations/            # Database migration scripts
+│   │   ├── README.md         # Migration documentation
+│   │   ├── add_settings_columns.sql # Add settings columns
+│   │   ├── add_profile_icon.py      # Add profile icon column
+│   │   └── apply_settings_migration.py # Execute migrations
 │   ├── add_personalization_columns.py
 │   ├── check_user_consistency.py
 │   ├── cleanup_duplicates.py
@@ -49,7 +52,7 @@ Paw-sitive AI/
 │   ├── README.md              # Main documentation
 │   ├── setup.md               # Setup instructions
 │   └── PGADMIN_CONNECTION_GUIDE.md
-└── enhanced_chroma_db/         # Vector database storage
+└── enhanced_chroma_db/         # Vector database storage (DO NOT COMMIT)
     ├── chroma.sqlite3
     └── 6b8762dd-caa7-4075-a25e-94ace6324e2c/
 ```
@@ -57,15 +60,33 @@ Paw-sitive AI/
 ## 🚀 Usage
 
 ```bash
-# Run the complete system (Frontend + API Bridge)
+# Start the complete system (Frontend + API Bridge + Database)
+python start.py
+
+# Or use Windows batch file
 start_all.bat
 
-# Or use Python launcher
-python start_system.py
+# Stop the system
+python stop.py
 
 # Access the application
 # Frontend: http://localhost:3000
 # API Health: http://localhost:8001/api/health
+# API Docs: http://localhost:8001/docs
+```
+
+## 🔧 Database Migrations
+
+Located in `scripts/migrations/`:
+
+```bash
+# Run all settings migrations
+python scripts/migrations/apply_settings_migration.py
+
+# Add profile icon column only
+python scripts/migrations/add_profile_icon.py
+
+# See migrations/README.md for more details
 ```
 
 ## ✅ Import Structure
