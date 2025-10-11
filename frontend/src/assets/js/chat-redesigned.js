@@ -1093,19 +1093,142 @@ async function handleLogout() {
 // ============================================================================
 
 function formatMessage(content) {
-    // Basic markdown-like formatting
+    // Enhanced markdown formatting with code block support
     content = escapeHtml(content);
+    
+    // Handle code blocks first (triple backticks with optional language)
+    content = content.replace(/```(\w+)?\n?([\s\S]*?)```/g, function(match, language, code) {
+        const lang = language || 'text';
+        const codeId = 'code-' + Math.random().toString(36).substr(2, 9);
+        const highlightedCode = highlightSyntax(code.trim(), lang);
+        return `
+            <div class="code-block-container">
+                <div class="code-block-header">
+                    <span class="code-language">${lang}</span>
+                    <button class="copy-code-btn" onclick="copyCode('${codeId}')" title="Copy code">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+                <pre class="code-block"><code id="${codeId}" class="language-${lang}">${highlightedCode}</code></pre>
+            </div>
+        `;
+    });
+    
+    // Handle inline code (single backticks)
+    content = content.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
     
     // Bold
     content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     
-    // Links
-    content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+    // Italic
+    content = content.replace(/\*(.*?)\*/g, '<em>$1</em>');
     
-    // Line breaks
+    // Links
+    content = content.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    
+    // Line breaks (preserve paragraph structure)
+    content = content.replace(/\n\n/g, '</p><p>');
     content = content.replace(/\n/g, '<br>');
+    content = '<p>' + content + '</p>';
+    
+    // Clean up empty paragraphs
+    content = content.replace(/<p><\/p>/g, '');
+    content = content.replace(/<p><br><\/p>/g, '');
     
     return content;
+}
+
+function highlightSyntax(code, language) {
+    // Simple syntax highlighting for Python and common languages
+    if (language === 'python' || language === 'py') {
+        return highlightPython(code);
+    } else if (language === 'javascript' || language === 'js') {
+        return highlightJavaScript(code);
+    } else if (language === 'html') {
+        return highlightHTML(code);
+    } else if (language === 'css') {
+        return highlightCSS(code);
+    }
+    return code; // Return as-is for unsupported languages
+}
+
+function highlightPython(code) {
+    // Python keywords
+    const keywords = ['def', 'class', 'import', 'from', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'finally', 'return', 'yield', 'lambda', 'with', 'as', 'pass', 'break', 'continue', 'and', 'or', 'not', 'in', 'is', 'True', 'False', 'None'];
+    const builtins = ['print', 'input', 'len', 'range', 'str', 'int', 'float', 'list', 'dict', 'tuple', 'set'];
+    
+    // Apply syntax highlighting
+    let highlighted = code;
+    
+    // Comments
+    highlighted = highlighted.replace(/(#.*$)/gm, '<span class="comment">$1</span>');
+    
+    // Strings
+    highlighted = highlighted.replace(/(".*?"|'.*?'|"""[\s\S]*?"""|'''[\s\S]*?''')/g, '<span class="string">$1</span>');
+    
+    // Keywords
+    keywords.forEach(keyword => {
+        highlighted = highlighted.replace(new RegExp(`\\b${keyword}\\b`, 'g'), `<span class="keyword">${keyword}</span>`);
+    });
+    
+    // Built-ins
+    builtins.forEach(builtin => {
+        highlighted = highlighted.replace(new RegExp(`\\b${builtin}\\b`, 'g'), `<span class="builtin">${builtin}</span>`);
+    });
+    
+    // Numbers
+    highlighted = highlighted.replace(/\b(\d+\.?\d*)\b/g, '<span class="number">$1</span>');
+    
+    return highlighted;
+}
+
+function highlightJavaScript(code) {
+    const keywords = ['function', 'var', 'let', 'const', 'if', 'else', 'for', 'while', 'return', 'class', 'extends', 'import', 'export', 'default', 'async', 'await', 'try', 'catch', 'finally', 'throw', 'new', 'this', 'super'];
+    
+    let highlighted = code;
+    
+    // Comments
+    highlighted = highlighted.replace(/(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, '<span class="comment">$1</span>');
+    
+    // Strings
+    highlighted = highlighted.replace(/(".*?"|'.*?'|`.*?`)/g, '<span class="string">$1</span>');
+    
+    // Keywords
+    keywords.forEach(keyword => {
+        highlighted = highlighted.replace(new RegExp(`\\b${keyword}\\b`, 'g'), `<span class="keyword">${keyword}</span>`);
+    });
+    
+    // Numbers
+    highlighted = highlighted.replace(/\b(\d+\.?\d*)\b/g, '<span class="number">$1</span>');
+    
+    return highlighted;
+}
+
+function highlightHTML(code) {
+    let highlighted = code;
+    
+    // HTML tags
+    highlighted = highlighted.replace(/(&lt;[^&]*&gt;)/g, '<span class="tag">$1</span>');
+    
+    // Attributes
+    highlighted = highlighted.replace(/(\w+)=("[^"]*")/g, '<span class="attribute">$1</span>=<span class="string">$2</span>');
+    
+    return highlighted;
+}
+
+function highlightCSS(code) {
+    let highlighted = code;
+    
+    // CSS selectors
+    highlighted = highlighted.replace(/([.#]?[\w-]+)(\s*{)/g, '<span class="selector">$1</span>$2');
+    
+    // CSS properties
+    highlighted = highlighted.replace(/([\w-]+)(\s*:)/g, '<span class="property">$1</span>$2');
+    
+    // CSS values
+    highlighted = highlighted.replace(/(:[\s]*)([^;{}]+)(;?)/g, '$1<span class="value">$2</span>$3');
+    
+    return highlighted;
 }
 
 function formatTime(timestamp) {
@@ -1156,6 +1279,45 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function copyCode(codeId) {
+    const codeElement = document.getElementById(codeId);
+    if (codeElement) {
+        const textToCopy = codeElement.textContent;
+        
+        if (navigator.clipboard && window.isSecureContext) {
+            // Use modern clipboard API
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                showNotification('Code copied to clipboard!', 'success');
+            }).catch(() => {
+                fallbackCopyText(textToCopy);
+            });
+        } else {
+            // Fallback for older browsers
+            fallbackCopyText(textToCopy);
+        }
+    }
+}
+
+function fallbackCopyText(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
+        showNotification('Code copied to clipboard!', 'success');
+    } catch (err) {
+        showNotification('Failed to copy code', 'error');
+    }
+    
+    document.body.removeChild(textArea);
 }
 
 function scrollToBottom() {

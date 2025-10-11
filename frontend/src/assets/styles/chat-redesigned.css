@@ -797,6 +797,163 @@ body {
 }
 
 /* ============================================================================
+   CODE BLOCK STYLES
+   ============================================================================ */
+
+.code-block-container {
+    margin: var(--spacing-md) 0;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--sidebar-border);
+    background: #f8f9fa;
+    box-shadow: var(--shadow-sm);
+}
+
+.code-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: #e9ecef;
+    border-bottom: 1px solid var(--sidebar-border);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.code-language {
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.copy-code-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all var(--transition-fast);
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.copy-code-btn:hover {
+    background: var(--accent-color);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.copy-code-btn:active {
+    transform: translateY(0);
+}
+
+.code-block {
+    margin: 0;
+    padding: var(--spacing-md);
+    background: #1e1e1e;
+    color: #d4d4d4;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre;
+    border: none;
+}
+
+.code-block code {
+    color: inherit;
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+    font-family: inherit;
+}
+
+/* Syntax highlighting colors */
+.code-block .keyword {
+    color: #569cd6; /* Blue */
+    font-weight: bold;
+}
+
+.code-block .string {
+    color: #ce9178; /* Orange */
+}
+
+.code-block .comment {
+    color: #6a9955; /* Green */
+    font-style: italic;
+}
+
+.code-block .number {
+    color: #b5cea8; /* Light green */
+}
+
+.code-block .builtin {
+    color: #dcdcaa; /* Yellow */
+}
+
+.code-block .tag {
+    color: #569cd6; /* Blue */
+}
+
+.code-block .attribute {
+    color: #9cdcfe; /* Light blue */
+}
+
+.code-block .selector {
+    color: #d7ba7d; /* Gold */
+}
+
+.code-block .property {
+    color: #9cdcfe; /* Light blue */
+}
+
+.code-block .value {
+    color: #ce9178; /* Orange */
+}
+
+/* Inline code styles */
+.inline-code {
+    background: #f1f3f4;
+    color: #d73502;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+    border: 1px solid #e1e5e9;
+}
+
+/* Dark theme code adjustments */
+.message.user .code-block-container {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.message.user .code-block-header {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.message.user .code-language,
+.message.user .copy-code-btn {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.message.user .copy-code-btn:hover {
+    background: var(--accent-color);
+    color: white;
+}
+
+.message.user .inline-code {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffd700;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ============================================================================
    INPUT AREA
    ============================================================================ */
 
