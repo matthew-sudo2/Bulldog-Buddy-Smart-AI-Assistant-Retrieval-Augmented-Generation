@@ -179,3 +179,4 @@ Built with ❤️ for National University students. For support, please open an 
 ---
 
 **Bulldog Buddy**: Your friendly AI campus companion! 🐶📚✨
+

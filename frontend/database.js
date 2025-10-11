@@ -42,16 +42,20 @@ class UserModel {
     static async create(userData) {
         const { email, username, password_hash, google_id, first_name, last_name } = userData;
         
+        // Generate a unique session_id for the new user
+        const sessionId = `user_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+        
         const query = `
             INSERT INTO users (
-                email, username, password_hash, first_name, last_name,
+                session_id, email, username, password_hash, first_name, last_name,
                 google_id, is_verified, created_at, last_active
             ) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
             RETURNING id, user_uuid, email, username, first_name, last_name, role, created_at
         `;
         
         const values = [
+            sessionId,
             email.toLowerCase(), 
             username || email.split('@')[0], // Use part of email as username if not provided
             password_hash, 
@@ -70,6 +74,9 @@ class UserModel {
                     throw new Error('Email already exists');
                 } else if (error.constraint === 'users_username_key') {
                     throw new Error('Username already exists');
+                } else if (error.constraint === 'users_session_id_key') {
+                    // This is rare but could happen with clock skew - retry with new session_id
+                    throw new Error('Session ID conflict - please try again');
                 }
             }
             console.error('Database error in create:', error);
@@ -157,14 +164,26 @@ class UserModel {
      * Update user login info
      */
     static async updateLogin(userId, sessionId = null) {
-        const query = `
-            UPDATE users 
-            SET last_login = NOW(), last_active = NOW()
-            WHERE id = $1
-        `;
+        let query, values;
+        
+        if (sessionId) {
+            query = `
+                UPDATE users 
+                SET last_login = NOW(), last_active = NOW(), session_id = $2
+                WHERE id = $1
+            `;
+            values = [userId, sessionId];
+        } else {
+            query = `
+                UPDATE users 
+                SET last_login = NOW(), last_active = NOW()
+                WHERE id = $1
+            `;
+            values = [userId];
+        }
         
         try {
-            await pool.query(query, [userId]);
+            await pool.query(query, values);
         } catch (error) {
             console.error('Error updating login:', error);
             throw error;

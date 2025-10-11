@@ -32,6 +32,15 @@ app.use('/src', express.static(path.join(__dirname, 'src'), {
     }
 }));
 
+// Serve files inside the public directory at the web root (so /favicon.ico works)
+app.use(express.static(path.join(__dirname, 'public'), {
+    setHeaders: (res, path) => {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+}));
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(session({
