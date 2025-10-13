@@ -53,6 +53,13 @@
 
 *Intelligent AI chat with RAG system, conversation history, and customizable settings*
 
+---
+
+### Settings & Customization
+<img src="frontend/src/assets/images/Settings.PNG" alt="Settings Panel" width="800"/>
+
+*Personalize your experience with themes, AI personality, response length, and display options*
+
 </div>
 
 ---
