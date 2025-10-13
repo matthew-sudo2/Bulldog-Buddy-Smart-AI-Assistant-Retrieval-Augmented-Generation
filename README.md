@@ -64,16 +64,16 @@
 
 ---
 
-## ✨ Features
+## Features
 
-- 🤖 **Dual AI Models**: Choose between Matt 3 and Matt 3.2
-- 📚 **RAG System**: Intelligent university handbook knowledge retrieval
-- 💬 **Conversation Memory**: Maintains context across 10 messages
-- 👤 **User Context**: Remembers user preferences and information
-- 🎨 **Modern UI**: Clean, responsive chat interface
-- 🔐 **Authentication**: Secure login with Google OAuth support
-- 🗄️ **Vector Search**: PostgreSQL + pgvector + ChromaDB for semantic search
-- 🌐 **Web Scraping**: Can analyze external URLs for information
+- **Dual AI Models**: Choose between Matt 3 and Matt 3.2
+- **RAG System**: Intelligent university handbook knowledge retrieval
+- **Conversation Memory**: Maintains context across 10 messages
+- **User Context**: Remembers user preferences and information
+- **Modern UI**: Clean, responsive chat interface
+- **Authentication**: Secure login with Google OAuth support
+- **Vector Search**: PostgreSQL + pgvector + ChromaDB for semantic search
+- **Web Scraping**: Can analyze external URLs for information
 
 ---
 
@@ -260,7 +260,7 @@ GOOGLE_CLIENT_SECRET=your_client_secret_here
 
 ---
 
-## 💡 Usage
+## Usage
 
 ### Chat Interface
 
@@ -272,10 +272,10 @@ GOOGLE_CLIENT_SECRET=your_client_secret_here
 ### Settings Panel
 
 Click the settings icon to customize:
-- 🎨 **Theme**: University, Dark, Light, Mint, Sunset, Ocean
-- 🤖 **Personality**: Friendly, Professional, Casual, Academic
-- 📏 **Response Length**: Concise, Balanced, Detailed
-- 🔧 **Display Options**: Confidence scores, sources, timestamps
+- **Theme**: University, Dark, Light, Mint, Sunset, Ocean
+- **Personality**: Friendly, Professional, Casual, Academic
+- **Response Length**: Concise, Balanced, Detailed
+- **Display Options**: Confidence scores, sources, timestamps
 
 ### Creating New Account
 
@@ -287,7 +287,7 @@ Click the settings icon to customize:
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### System Components
 
@@ -406,7 +406,7 @@ curl http://127.0.0.1:8001/api/health
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 For more detailed information, see:
 
@@ -416,7 +416,7 @@ For more detailed information, see:
 
 ---
 
-## 🤝 Support
+## Support
 
 For issues or questions:
 - Check the [Troubleshooting](#-troubleshooting) section
@@ -425,13 +425,13 @@ For issues or questions:
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License.
 
 ---
 
-## 🎉 Quick Command Reference
+## Quick Command Reference
 
 ```bash
 # Start everything
