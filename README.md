@@ -24,37 +24,34 @@
 
 <div align="center">
 
-### 🏠 Landing Page
-*Welcome to Bulldog Buddy - Your Smart Campus Assistant*
+### Landing Page
+<img src="frontend/src/assets/images/Landing-page.PNG" alt="Bulldog Buddy Landing Page" width="800"/>
 
-<img src="frontend/src/assets/images/Landing-page.png" alt="Bulldog Buddy Landing Page" width="750" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"/>
+*Welcome to Bulldog Buddy - Your Smart Campus Assistant*
 
 ---
 
-### 🔐 Authentication System
-*Secure login with email or Google OAuth*
+### User Authentication
 
-<table align="center">
+<table>
 <tr>
-<td align="center" width="50%">
-<img src="frontend/src/assets/images/Login-page.png" alt="Login Page" width="380" style="border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"/>
-<br><em>Login Page</em>
+<td width="50%">
+<img src="frontend/src/assets/images/Login-page.PNG" alt="Login Page" width="100%"/>
+<p align="center"><b>Login Page</b><br/>Secure authentication with Google OAuth support</p>
 </td>
-<td align="center" width="50%">
-<img src="frontend/src/assets/images/Register-page.png" alt="Register Page" width="380" style="border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"/>
-<br><em>Registration Page</em>
+<td width="50%">
+<img src="frontend/src/assets/images/Register-page.PNG" alt="Register Page" width="100%"/>
+<p align="center"><b>Registration Page</b><br/>Quick and easy account creation</p>
 </td>
 </tr>
 </table>
 
 ---
 
-### 💬 AI Chat Interface
-*Interactive chat with code highlighting and conversation management*
+### Main Chat Interface
+<img src="frontend/src/assets/images/Chat-interface.PNG" alt="Chat Interface" width="800"/>
 
-<img src="frontend/src/assets/images/Chat-interface.png" alt="Chat Interface with AI Assistant" width="750" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"/>
-
-*Features: Dual AI models, conversation history, code block rendering, and real-time responses*
+*Intelligent AI chat with RAG system, conversation history, and customizable settings*
 
 </div>
 
