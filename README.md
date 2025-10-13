@@ -7,6 +7,7 @@
 
 ## 📋 Table of Contents
 
+- [Demo Screenshots](#-demo-screenshots)
 - [Features](#-features)
 - [Prerequisites](#-prerequisites)
 - [Installation](#-installation)
@@ -16,6 +17,46 @@
 - [Architecture](#-architecture)
 - [Troubleshooting](#-troubleshooting)
 - [Documentation](#-documentation)
+
+---
+
+## 📸 Demo Screenshots
+
+<div align="center">
+
+### 🏠 Landing Page
+*Welcome to Bulldog Buddy - Your Smart Campus Assistant*
+
+<img src="frontend/src/assets/images/Landing-page.png" alt="Bulldog Buddy Landing Page" width="750" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"/>
+
+---
+
+### 🔐 Authentication System
+*Secure login with email or Google OAuth*
+
+<table align="center">
+<tr>
+<td align="center" width="50%">
+<img src="frontend/src/assets/images/Login-page.png" alt="Login Page" width="380" style="border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"/>
+<br><em>Login Page</em>
+</td>
+<td align="center" width="50%">
+<img src="frontend/src/assets/images/Register-page.png" alt="Register Page" width="380" style="border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"/>
+<br><em>Registration Page</em>
+</td>
+</tr>
+</table>
+
+---
+
+### 💬 AI Chat Interface
+*Interactive chat with code highlighting and conversation management*
+
+<img src="frontend/src/assets/images/Chat-interface.png" alt="Chat Interface with AI Assistant" width="750" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"/>
+
+*Features: Dual AI models, conversation history, code block rendering, and real-time responses*
+
+</div>
 
 ---
 
