@@ -261,6 +261,11 @@ class EnhancedRAGSystem:
                 chunks = self.text_splitter.split_text(enriched_content)
                 
                 for i, chunk in enumerate(chunks):
+                    # Skip chunks that are too small (likely just metadata footer)
+                    # These tiny chunks can rank higher than actual content in semantic search
+                    if len(chunk.strip()) < 100:
+                        continue
+                    
                     chunk_metadata = metadata.copy()
                     chunk_metadata['chunk_id'] = i
                     chunk_metadata['total_chunks'] = len(chunks)
@@ -387,6 +392,8 @@ FORMATTING RULES (IMPORTANT):
 - Add spacing after sentences for readability
 - Structure your response with clear paragraphs
 - Don't make the text too compact - add breathing room
+- **BOLD important terms**: grades (GPA, GWA), requirements, deadlines, amounts, policy names, section numbers
+- Use **bold** for emphasis on critical information like: **minimum requirements**, **deadlines**, **fees**, **grade thresholds**
 
 Bulldog Buddy's Answer:""",
             input_variables=["context", "question"]
@@ -436,6 +443,8 @@ FORMATTING RULES (IMPORTANT):
 - Add spacing after sentences for readability
 - Structure your response with clear paragraphs
 - Don't make the text too compact - add breathing room
+- **BOLD important terms**: grades (GPA, GWA), requirements, deadlines, amounts, policy names, section numbers
+- Use **bold** for emphasis on critical information like: **minimum requirements**, **deadlines**, **fees**, **grade thresholds**
 
 Bulldog Buddy's Conversational Answer:""",
             input_variables=["chat_history", "context", "question"]
@@ -686,7 +695,7 @@ Bulldog Buddy's Conversational Answer:""",
                         source_docs = result.get("source_documents", [])
                         
                         # CHECK RELEVANCE: If retrieved chunks aren't relevant to the follow-up, clear cache and retrieve fresh
-                        if not self._are_chunks_relevant_to_query(standalone_question, source_docs, threshold=0.15):
+                        if not self._are_chunks_relevant_to_query(standalone_question, source_docs, threshold=0.08):
                             self.logger.warning(f"Retrieved chunks not relevant to follow-up question. Clearing cache and re-retrieving...")
                             self._clear_context_cache()
                             
@@ -697,7 +706,7 @@ Bulldog Buddy's Conversational Answer:""",
                             source_docs = result.get("source_documents", [])
                             
                             # If still not relevant, switch to general mode
-                            if not self._are_chunks_relevant_to_query(standalone_question, source_docs, threshold=0.15):
+                            if not self._are_chunks_relevant_to_query(standalone_question, source_docs, threshold=0.08):
                                 self.logger.info("Chunks still not relevant - switching to general knowledge mode")
                                 return self._handle_conversational_general_query(standalone_question, question)
                         
@@ -755,7 +764,7 @@ Bulldog Buddy's Conversational Answer:""",
                 source_docs = result.get("source_documents", [])
                 
                 # Check if retrieved chunks are relevant, if not switch to general mode
-                if not self._are_chunks_relevant_to_query(clean_question, source_docs, threshold=0.15):
+                if not self._are_chunks_relevant_to_query(clean_question, source_docs, threshold=0.08):
                     self.logger.info("Retrieved chunks not relevant - switching to general knowledge")
                     self._clear_context_cache()
                     return self._handle_general_query(clean_question)
@@ -939,11 +948,11 @@ Bulldog Buddy's Conversational Answer:""",
         
         return f"\n\nNOTE: The handbook information above is specifically retrieved for THIS question. It's from sections: {', '.join(sections)} covering {', '.join(categories)}. Don't confuse this with information from previous questions."
     
-    def _are_chunks_relevant_to_query(self, query: str, chunks: List[Document], threshold: float = 0.10) -> bool:
+    def _are_chunks_relevant_to_query(self, query: str, chunks: List[Document], threshold: float = 0.08) -> bool:
         """
         Check if retrieved chunks are actually relevant to the query
         Returns True if chunks seem relevant, False if they should be discarded
-        Threshold lowered to 0.10 (10%) to catch more relevant matches
+        Threshold lowered to 0.08 (8%) for better recall - we'd rather show somewhat relevant info than none
         """
         if not chunks:
             return False
@@ -1219,6 +1228,8 @@ FORMATTING RULES (IMPORTANT):
 - For grade scales, use bullet points or tables with proper spacing
 - Add spacing after sentences for readability
 - Structure your response with clear paragraphs
+- **BOLD important terms**: grades (GPA, GWA), requirements, deadlines, amounts, policy names, section numbers
+- Use **bold** for emphasis on critical information like: **minimum requirements**, **deadlines**, **fees**, **grade thresholds**
 - Don't make the text too compact - add breathing room
 
 Bulldog Buddy's Response:"""
@@ -1316,6 +1327,8 @@ FORMATTING RULES (IMPORTANT):
 - Add spacing after sentences for readability
 - Structure your response with clear paragraphs
 - Don't make the text too compact - add breathing room
+- **BOLD important terms** and key concepts for emphasis
+- Use **bold** for emphasis on critical information
 
 Bulldog Buddy's Answer:"""
 
@@ -1392,6 +1405,8 @@ FORMATTING RULES (IMPORTANT):
 - Add spacing after sentences for readability
 - Structure your response with clear paragraphs
 - Don't make the text too compact - add breathing room
+- **BOLD important terms** and key concepts for emphasis
+- Use **bold** for emphasis on critical information
 
 Bulldog Buddy's Conversational Answer:"""
 
