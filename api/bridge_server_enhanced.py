@@ -213,15 +213,6 @@ async def chat(chat_request: ChatMessage):
                 title="New Conversation"
             )
         
-        # Save user message
-        if conversation_manager and session_id:
-            conversation_manager.add_message_to_session(
-                session_uuid=session_id,
-                user_id=chat_request.user_id,
-                content=chat_request.message,
-                message_type="user"
-            )
-        
         # Set RAG mode
         current_rag = rag_systems.get(chat_request.model, rag_system)
         if hasattr(current_rag, 'set_university_mode'):
@@ -230,6 +221,19 @@ async def chat(chat_request: ChatMessage):
         # Set user context if available
         if hasattr(current_rag, 'set_user_context'):
             current_rag.set_user_context(chat_request.user_id)
+        
+        # Set session (this will clear cache if session changed)
+        if hasattr(current_rag, 'set_session') and session_id:
+            current_rag.set_session(session_id)
+        
+        # Save user message
+        if conversation_manager and session_id:
+            conversation_manager.add_message_to_session(
+                session_uuid=session_id,
+                user_id=chat_request.user_id,
+                content=chat_request.message,
+                message_type="user"
+            )
         
         # Generate response using ask_question method
         logger.info(f"💬 Processing message with {chat_request.model} in {chat_request.mode} mode")

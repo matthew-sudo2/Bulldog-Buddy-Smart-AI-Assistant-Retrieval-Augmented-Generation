@@ -74,8 +74,16 @@ class UserContextManager:
         # Pattern matching for common user info
         patterns = {
             'name': [
-                r"(?:my name is|i'm|i am|call me|i'm called)\s+([a-zA-Z]+)",
-                r"(?:i'm|i am)\s+([a-zA-Z]+)",
+                # Primary patterns - most specific first
+                r"(?:my name is|my name's|name is|name's)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b",
+                r"(?:call me|you can call me|refer to me as)\s+([A-Z][a-z]+)\b",
+                r"(?:this is|it's)\s+([A-Z][a-z]+)(?:\s+speaking|\s+here|,|\.|!|$)",
+                r"(?:i'm|i am)\s+([A-Z][a-z]+)(?:,|\.|!|$|\s+and)",
+                # Backup patterns - case insensitive with word boundary
+                r"(?:my name is|my name's|name is)\s+([a-z]+(?:\s+[a-z]+)?)\b",
+                r"(?:i'm|i am)\s+([a-z]+)\b(?!\s+(?:a|an|the|from|in|studying|majoring|going|coming|looking|trying|here|there))",
+                r"(?:call me|you can call me)\s+([a-z]+)\b",
+                r"(?:this is|it's)\s+([a-z]+)(?:\s+speaking|\s+here|,|\.|!|$)",
             ],
             'age': [
                 r"(?:i'm|i am|my age is)\s+(\d+)\s*(?:years?\s*old)?",
@@ -105,19 +113,44 @@ class UserContextManager:
         }
         
         message_lower = message.lower()
+        # Keep original for proper capitalization
+        message_original = message
         
         for info_type, pattern_list in patterns.items():
             for pattern in pattern_list:
-                matches = re.findall(pattern, message_lower, re.IGNORECASE)
-                if matches:
-                    value = matches[0].strip()
-                    if len(value) > 1:  # Avoid single characters
-                        extracted_info[info_type] = {
-                            'value': value,
-                            'confidence': 0.8,  # Base confidence
-                            'pattern': pattern
-                        }
-                        break
+                # For name extraction, try both original and lowercase
+                if info_type == 'name':
+                    # Try with original capitalization first
+                    matches = re.findall(pattern, message_original)
+                    if not matches:
+                        # Fall back to lowercase, then capitalize result
+                        matches = re.findall(pattern, message_lower)
+                        if matches:
+                            # Capitalize the extracted name
+                            value = matches[0].strip() if isinstance(matches[0], str) else matches[0][0].strip()
+                            value = ' '.join(word.capitalize() for word in value.split())
+                        else:
+                            continue
+                    else:
+                        value = matches[0].strip() if isinstance(matches[0], str) else matches[0][0].strip()
+                else:
+                    matches = re.findall(pattern, message_lower, re.IGNORECASE)
+                    if not matches:
+                        continue
+                    value = matches[0].strip() if isinstance(matches[0], str) else matches[0][0].strip()
+                
+                # Clean up the extracted value
+                if info_type == 'name':
+                    # Remove common trailing words that might have been captured
+                    value = re.sub(r'\s+(and|or|but|so|then|here|speaking|present).*$', '', value, flags=re.IGNORECASE).strip()
+                    
+                if len(value) > 1:  # Avoid single characters
+                    extracted_info[info_type] = {
+                        'value': value,
+                        'confidence': 0.8,  # Base confidence
+                        'pattern': pattern
+                    }
+                    break
         
         # Store extracted information
         for info_type, info_data in extracted_info.items():
@@ -212,6 +245,39 @@ class UserContextManager:
         
         return {}
     
+    def get_user_registered_name(self, user_id: int) -> Optional[str]:
+        """
+        Get the user's registered username from the database as fallback
+        Returns the username if found, None otherwise
+        """
+        try:
+            conn = self.db.get_connection()
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT username, email FROM users WHERE id = %s
+                """, (user_id,))
+                
+                result = cur.fetchone()
+                if result:
+                    username = result.get('username', '')
+                    # Extract first name from username if it's a full name or email
+                    if username:
+                        # If it's an email, get the part before @
+                        if '@' in username:
+                            username = username.split('@')[0]
+                        # If it has dots or underscores, get first part
+                        username = username.replace('_', ' ').replace('.', ' ')
+                        # Capitalize first letter of each word
+                        username = ' '.join(word.capitalize() for word in username.split())
+                        return username.split()[0] if username else None
+                
+            self.db.return_connection(conn)
+            
+        except Exception as e:
+            logger.error(f"Error getting registered username: {e}")
+        
+        return None
+    
     def build_context_prompt(self, user_id: int) -> str:
         """
         Build a context prompt similar to ChatGPT's memory
@@ -240,6 +306,12 @@ class UserContextManager:
             else:
                 other[key] = value
         
+        # If no name in context, try to get registered username from database
+        if 'name' not in personal_info:
+            username = self.get_user_registered_name(user_id)
+            if username:
+                personal_info['name'] = username
+        
         # Build context prompt
         context_parts = []
         
@@ -265,11 +337,22 @@ class UserContextManager:
         
         if context_parts:
             full_context = "\\n".join(context_parts)
+            
+            # Extract user's name if available for personalized greeting instruction
+            user_name = personal_info.get('name', '')
+            name_instruction = f"The user's name is {user_name}. " if user_name else "You don't know the user's name yet. "
+            
             return f"""
 IMPORTANT USER CONTEXT (Remember this information about the user):
 {full_context}
 
-Please use this information to personalize your responses. Reference their name when appropriate, remember their goals, interests, and preferences. Be conversational and remember what they've told you about themselves.
+{name_instruction}Please use this information to personalize your responses appropriately:
+- When you know their name, use it SPARINGLY (once every few exchanges, not every response)
+- Use their name when starting a new topic or after breaks in conversation
+- In follow-up questions, focus on answering rather than repeating their name
+- Remember their goals, interests, and preferences naturally
+- Be conversational without being repetitive or overly familiar
+- Build rapport through substance, not just name repetition
 """
         
         return ""

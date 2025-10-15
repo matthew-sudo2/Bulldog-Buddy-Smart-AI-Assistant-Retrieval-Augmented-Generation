@@ -98,6 +98,18 @@ class EnhancedRAGSystem:
         # University mode control
         self.university_mode_enabled = True  # Default to university mode
         
+        # Session tracking - to clear cache when switching conversations
+        self.current_session_id = None
+        
+        # Retrieved context cache - track what chunks were retrieved for each query
+        self.retrieved_context_cache = {
+            'current_query': None,
+            'current_chunks': [],
+            'previous_query': None,
+            'previous_chunks': [],
+            'timestamp': None
+        }
+        
         # Initialize embeddings
         self.embeddings = OllamaEmbeddings(model="embeddinggemma:latest")
         
@@ -179,27 +191,74 @@ class EnhancedRAGSystem:
             return False
     
     def _process_csv_content(self) -> List[Document]:
-        """Process structured CSV content into LangChain Documents"""
+        """
+        Process structured CSV content into LangChain Documents with enhanced semantic metadata
+        This improves semantic search by adding context-rich descriptions
+        """
         try:
             df = pd.read_csv(self.handbook_path)
             documents = []
             
+            # Category-specific semantic keywords for better retrieval
+            category_keywords = {
+                'Academic': ['grades', 'grading', 'GPA', 'academic performance', 'marks', 'scores', 'evaluation', 'assessment'],
+                'Financial': ['tuition', 'fees', 'payment', 'charges', 'refund', 'scholarship', 'financial', 'billing', 'cost'],
+                'Admissions': ['enrollment', 'registration', 'admission', 'application', 'requirements', 'transfer'],
+                'Policies': ['rules', 'regulations', 'policy', 'guidelines', 'procedures', 'attendance', 'conduct'],
+                'Student Life': ['student ID', 'uniform', 'facilities', 'services', 'activities', 'campus life'],
+                'General': ['information', 'overview', 'general', 'about', 'introduction']
+            }
+            
             for _, row in df.iterrows():
-                # Create content combining title and content
-                content = f"Section: {row.get('title', '')}\n\n{row.get('content', '')}"
+                section_num = str(row.get('section_number', ''))
+                title = str(row.get('title', ''))
+                content = str(row.get('content', ''))
+                category = str(row.get('category', 'General'))
                 
-                # Create metadata
+                # Build semantically enriched content for better embedding
+                # Include section number, title, category keywords, and content
+                semantic_enrichment = []
+                
+                # Add category context
+                if category in category_keywords:
+                    keywords = ', '.join(category_keywords[category][:5])  # Top 5 keywords
+                    semantic_enrichment.append(f"Topic area: {category} ({keywords})")
+                
+                # Add title without "Section X.X:" prefix for cleaner search
+                clean_title = title.replace(f'Section {section_num}:', '').strip()
+                semantic_enrichment.append(f"Subject: {clean_title}")
+                
+                # Build the enriched content
+                enriched_content_parts = [
+                    f"=== UNIVERSITY HANDBOOK POLICY ===",
+                    f"Section {section_num}: {clean_title}",
+                    "",
+                    *semantic_enrichment,
+                    "",
+                    "Content:",
+                    content,
+                    "",
+                    f"Category: {category}",
+                    f"Source: National University Student Handbook Section {section_num}"
+                ]
+                
+                enriched_content = "\n".join(enriched_content_parts)
+                
+                # Create comprehensive metadata
                 metadata = {
-                    'section_number': str(row.get('section_number', '')),
+                    'section_number': section_num,
                     'section_type': str(row.get('section_type', '')),
-                    'title': str(row.get('title', '')),
-                    'category': str(row.get('category', 'General')),
+                    'title': title,
+                    'clean_title': clean_title,
+                    'category': category,
                     'word_count': int(row.get('word_count', 0)),
-                    'source': 'Student Handbook'
+                    'source': 'Student Handbook',
+                    'source_type': 'official_policy',
+                    'semantic_keywords': ', '.join(category_keywords.get(category, []))
                 }
                 
-                # Split content into chunks if it's too long
-                chunks = self.text_splitter.split_text(content)
+                # Split content into chunks if it's too long (but keep enrichment context)
+                chunks = self.text_splitter.split_text(enriched_content)
                 
                 for i, chunk in enumerate(chunks):
                     chunk_metadata = metadata.copy()
@@ -211,6 +270,7 @@ class EnhancedRAGSystem:
                         metadata=chunk_metadata
                     ))
             
+            self.logger.info(f"Processed {len(df)} handbook sections into {len(documents)} enriched documents")
             return documents
             
         except Exception as e:
@@ -218,7 +278,10 @@ class EnhancedRAGSystem:
             return []
         
     def _get_enhanced_retriever(self, k: int = 8):
-        """Get a custom retriever that uses keyword fallback when embedding search fails"""
+        """
+        Get a custom retriever with deduplication and diversity
+        Ensures we don't return multiple chunks from the same section
+        """
         from langchain.schema import BaseRetriever
         
         class EnhancedRetriever(BaseRetriever):
@@ -229,71 +292,101 @@ class EnhancedRAGSystem:
                 
             def _get_relevant_documents(self, query: str, *, run_manager=None):
                 try:
-                    # First try normal similarity search
-                    docs = self.rag_system.vectorstore.similarity_search(query, k=self.k)
+                    # Try MMR (Maximal Marginal Relevance) for diversity first
+                    try:
+                        docs = self.rag_system.vectorstore.max_marginal_relevance_search(
+                            query, 
+                            k=self.k * 2,  # Fetch more for deduplication
+                            fetch_k=self.k * 4  # Even more candidates
+                        )
+                    except:
+                        # Fallback to regular similarity search
+                        docs = self.rag_system.vectorstore.similarity_search(query, k=self.k * 2)
                     
-                    # Check if we got good results for grading questions
-                    if 'grading' in query.lower() or 'grade' in query.lower():
+                    # Deduplicate by section_number - keep only one chunk per section
+                    seen_sections = set()
+                    unique_docs = []
+                    
+                    for doc in docs:
+                        section_num = doc.metadata.get('section_number', '')
+                        # Use section + category as key for better deduplication
+                        doc_key = f"{section_num}_{doc.metadata.get('category', '')}"
+                        
+                        if doc_key not in seen_sections:
+                            seen_sections.add(doc_key)
+                            unique_docs.append(doc)
+                        
+                        # Stop when we have enough unique sections
+                        if len(unique_docs) >= self.k:
+                            break
+                    
+                    # Special handling for grading questions
+                    if 'grading' in query.lower() or 'grade' in query.lower() or 'inc' in query.lower():
                         # Filter out documents with wrong grading scale
                         good_docs = []
-                        for doc in docs:
-                            # Skip documents with wrong 1.00-1.24 scale
+                        for doc in unique_docs:
+                            # Skip documents with old/wrong grading scale
                             if '1.00-1.24' in doc.page_content:
                                 continue
                             good_docs.append(doc)
                         
-                        # If we don't have enough good docs, use keyword fallback
+                        # If we don't have enough, use keyword fallback
                         if len(good_docs) < 2:
-                            keywords = ['grading', 'grade', '4.0', 'excellent', 'gpa', 'marks']
+                            keywords = ['grading', 'grade', '4.0', 'excellent', 'gpa', 'marks', 'incomplete', 'inc']
                             fallback_docs = self.rag_system._keyword_search_fallback(query, keywords, self.k)
-                            # Combine and deduplicate
-                            all_docs = good_docs + fallback_docs
-                            seen_content = set()
-                            unique_docs = []
-                            for doc in all_docs:
-                                content_key = doc.page_content[:100]  # Use first 100 chars as key
-                                if content_key not in seen_content:
-                                    seen_content.add(content_key)
-                                    unique_docs.append(doc)
-                            return unique_docs[:self.k]
+                            # Add fallback docs that aren't already included
+                            for fdoc in fallback_docs:
+                                fsection = fdoc.metadata.get('section_number', '')
+                                fkey = f"{fsection}_{fdoc.metadata.get('category', '')}"
+                                if fkey not in seen_sections:
+                                    good_docs.append(fdoc)
+                                    seen_sections.add(fkey)
+                            return good_docs[:self.k]
                         else:
                             return good_docs
                     
-                    return docs
+                    return unique_docs[:self.k]
                     
                 except Exception as e:
-                    # If similarity search fails completely, use keyword fallback
-                    self.rag_system.logger.warning(f"Similarity search failed, using keyword fallback: {e}")
-                    if 'grading' in query.lower() or 'grade' in query.lower():
-                        keywords = ['grading', 'grade', '4.0', 'excellent', 'gpa', 'marks']
-                    else:
-                        # Extract keywords from query
-                        keywords = [word for word in query.lower().split() if len(word) > 3]
-                    return self.rag_system._keyword_search_fallback(query, keywords, self.k)
+                    # If all else fails, use keyword fallback
+                    self.rag_system.logger.warning(f"Retrieval error, using keyword fallback: {e}")
+                    keywords = [word for word in query.lower().split() if len(word) > 3]
+                    return self.rag_system._keyword_search_fallback(query, keywords or ['information'], self.k)
         
         return EnhancedRetriever(self, k)
     
     def _initialize_chains(self):
         """Initialize the QA and conversational chains with enhanced memory"""
-        # Custom prompt template for better responses
+        # Custom prompt template for better responses with formatting instructions
         custom_prompt = PromptTemplate(
-            template="""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant. 
+            template="""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant with access to the official National University Philippines (NU Philippines) Student Handbook.
 
-Use the context below only as background knowledge when helpful:
+IMPORTANT: All information and policies you discuss are specifically for National University Philippines (NU Philippines), a private university in the Philippines.
 
-Context: {context}
+The following information is from the official National University Philippines handbook:
 
-Question: {question}
+{context}
+
+Student Question: {question}
 
 Instructions:
-
-- Always answer as if you already know the information (never mention the context or handbook directly)
+- Answer based on the official National University Philippines handbook information provided above
+- Be confident and authoritative when citing handbook policies for NU Philippines
 - Be enthusiastic and supportive with a bulldog personality
-- Use "Woof!" occasionally but naturally
-- Provide accurate and concise answers
+- Use "Woof!" occasionally but naturally (not in every response)
+- Provide accurate and concise answers specific to National University Philippines
+- When the handbook information is relevant, present it as official NU Philippines university policy
 - If the context doesn't contain relevant information, be honest about it
-- Use emojis appropriately (🐶, 🐾, 📚, 🏫)
+- Use emojis appropriately but sparingly (🐶, 🐾, 📚, 🏫)
 - Keep responses helpful and student-focused
+- Avoid repetitive greetings or phrases
+
+FORMATTING RULES (IMPORTANT):
+- Use proper line breaks between paragraphs (add blank lines)
+- For lists, use bullet points with proper spacing
+- Add spacing after sentences for readability
+- Structure your response with clear paragraphs
+- Don't make the text too compact - add breathing room
 
 Bulldog Buddy's Answer:""",
             input_variables=["context", "question"]
@@ -311,27 +404,38 @@ Bulldog Buddy's Answer:""",
             chain_type_kwargs={"prompt": custom_prompt}
         )
         
-        # Enhanced conversational prompt template for follow-up awareness
+        # Enhanced conversational prompt template for follow-up awareness with formatting
         conversational_prompt = PromptTemplate(
-            template="""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant. You're having an ongoing conversation with a student and should maintain context awareness.
+            template="""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant with access to the National University Philippines (NU Philippines) Student Handbook. You're having an ongoing conversation with a student.
+
+IMPORTANT: All information and policies you discuss are specifically for National University Philippines (NU Philippines), a private university in the Philippines.
 
 Chat History:
 {chat_history}
 
-Context from knowledge base:
+Official National University Philippines Handbook Information:
 {context}
 
 Current Question: {question}
 
 Instructions:
 - You are aware of the ongoing conversation context
+- Use the National University Philippines handbook information when relevant to answer university policy questions
 - Reference previous topics naturally when relevant
 - Be enthusiastic and supportive with a bulldog personality  
-- Use "Woof!" occasionally but naturally
-- Provide accurate and conversational answers that flow naturally
-- If the context doesn't contain relevant information, use your conversation awareness
-- Use emojis appropriately (🐶, 🐾, 📚, 🏫)
-- Keep responses helpful and conversational
+- Use "Woof!" very occasionally and naturally (not in most responses)
+- Provide accurate and conversational answers specific to NU Philippines that flow naturally
+- Use emojis sparingly (🐶, 🐾, 📚, 🏫)
+- Keep responses helpful and conversational without being repetitive
+- Avoid overusing greetings or the student's name in follow-up responses
+- Present handbook information as official National University Philippines policy when applicable
+
+FORMATTING RULES (IMPORTANT):
+- Use proper line breaks between paragraphs (add blank lines)
+- For lists, use bullet points with proper spacing
+- Add spacing after sentences for readability
+- Structure your response with clear paragraphs
+- Don't make the text too compact - add breathing room
 
 Bulldog Buddy's Conversational Answer:""",
             input_variables=["chat_history", "context", "question"]
@@ -399,6 +503,82 @@ Bulldog Buddy's Conversational Answer:""",
         """Set the current user for context management"""
         self.current_user_id = user_id
         self.logger.info(f"Set user context for user ID: {user_id}")
+    
+    def set_session(self, session_id: str):
+        """Set current conversation session and clear cache if session changes"""
+        if session_id != self.current_session_id:
+            self.logger.info(f"🔄 Session changed from {self.current_session_id} to {session_id} - clearing context cache")
+            self.current_session_id = session_id
+            self._clear_context_cache()
+        else:
+            self.logger.debug(f"✅ Same session: {session_id}")
+    
+    def get_user_name_for_prompt(self) -> str:
+        """Get user's name for personalized prompts, returns empty string if not available"""
+        if not self.context_manager or not self.current_user_id:
+            return ""
+        
+        try:
+            context_data = self.context_manager.get_user_context(self.current_user_id)
+            if context_data and 'name' in context_data:
+                return context_data['name']['value']
+        except Exception as e:
+            self.logger.debug(f"Could not retrieve user name: {e}")
+        
+        return ""
+    
+    def should_use_name_in_greeting(self) -> bool:
+        """
+        Determine if we should use the user's name in the greeting
+        Prevents over-repetition by using names strategically:
+        - Every 3-5 exchanges
+        - After long pauses (detected by conversation history gaps)
+        - When appropriate contextually
+        """
+        # If no conversation history, use name (first interaction)
+        if len(self.conversation_history) == 0:
+            return True
+        
+        # Count exchanges since we last potentially used name
+        # We'll use name every 4 exchanges on average
+        exchange_count = len(self.conversation_history)
+        
+        # Use name on 1st, 4th, 8th, 12th exchange etc.
+        if exchange_count % 4 == 0:
+            return True
+        
+        # Also use name if it's been a while (more than 10 exchanges)
+        if exchange_count > 10 and exchange_count % 3 == 0:
+            return True
+            
+        return False
+    
+    def get_context_aware_greeting(self, force_name: bool = False) -> str:
+        """
+        Get a context-aware greeting that doesn't overuse the name
+        Args:
+            force_name: If True, always include name if available (for specific query types)
+        Returns:
+            Appropriate greeting string
+        """
+        user_name = self.get_user_name_for_prompt()
+        
+        # If we should use the name (or forced), and name is available
+        if user_name and (force_name or self.should_use_name_in_greeting()):
+            return f"Hey {user_name}! "
+        
+        # Alternate greetings without name repetition
+        alternate_greetings = [
+            "Woof! ",
+            "Hey there! ",
+            "",  # No greeting, direct answer
+            "Sure! ",
+            "Absolutely! "
+        ]
+        
+        # Use conversation count to cycle through greetings
+        greeting_index = len(self.conversation_history) % len(alternate_greetings)
+        return alternate_greetings[greeting_index]
     
     def add_to_history(self, user_message: str, assistant_response: str):
         """Add exchange to conversation history and save to database"""
@@ -504,10 +684,34 @@ Bulldog Buddy's Conversational Answer:""",
                         
                         # Extract source information
                         source_docs = result.get("source_documents", [])
+                        
+                        # CHECK RELEVANCE: If retrieved chunks aren't relevant to the follow-up, clear cache and retrieve fresh
+                        if not self._are_chunks_relevant_to_query(standalone_question, source_docs, threshold=0.15):
+                            self.logger.warning(f"Retrieved chunks not relevant to follow-up question. Clearing cache and re-retrieving...")
+                            self._clear_context_cache()
+                            
+                            # Try again with fresh retrieval (using regular QA chain)
+                            result = self.qa_chain({
+                                "query": standalone_question
+                            })
+                            source_docs = result.get("source_documents", [])
+                            
+                            # If still not relevant, switch to general mode
+                            if not self._are_chunks_relevant_to_query(standalone_question, source_docs, threshold=0.15):
+                                self.logger.info("Chunks still not relevant - switching to general knowledge mode")
+                                return self._handle_conversational_general_query(standalone_question, question)
+                        
+                        # Update context cache with retrieved chunks
+                        self._update_context_cache(standalone_question, source_docs)
+                        
                         sources = self._format_sources(source_docs)
                         
+                        # Post-process answer to ensure proper formatting
+                        answer_text = result.get("answer", "")
+                        answer_text = self._ensure_proper_formatting(answer_text)
+                        
                         final_result = {
-                            "answer": result.get("answer", ""),
+                            "answer": answer_text,
                             "source_documents": sources,
                             "confidence": self._calculate_confidence(standalone_question, source_docs),
                             "mode": "conversational",
@@ -539,15 +743,34 @@ Bulldog Buddy's Conversational Answer:""",
             
             # Regular RAG handling based on mode
             if self.is_university_mode_enabled():
+                # Clear cache if query is unrelated to previous context
+                if not is_followup and not self._is_query_related_to_cached_context(clean_question):
+                    self._clear_context_cache()
+                    self.logger.info("Cleared context cache - new unrelated query detected")
+                
                 result = self.qa_chain({
                     "query": enhanced_question
                 })
                 
                 source_docs = result.get("source_documents", [])
+                
+                # Check if retrieved chunks are relevant, if not switch to general mode
+                if not self._are_chunks_relevant_to_query(clean_question, source_docs, threshold=0.15):
+                    self.logger.info("Retrieved chunks not relevant - switching to general knowledge")
+                    self._clear_context_cache()
+                    return self._handle_general_query(clean_question)
+                
+                # Update context cache with retrieved chunks
+                self._update_context_cache(clean_question, source_docs)
+                
                 sources = self._format_sources(source_docs)
                 
+                # Ensure proper formatting in answer
+                answer_text = result.get("answer", result.get("result", ""))
+                answer_text = self._ensure_proper_formatting(answer_text)
+                
                 final_result = {
-                    "answer": result.get("answer", result.get("result", "")),
+                    "answer": answer_text,
                     "source_documents": sources,
                     "confidence": self._calculate_confidence(question, source_docs),
                     "mode": "university",
@@ -641,12 +864,149 @@ Bulldog Buddy's Conversational Answer:""",
         return round(confidence, 2)
     
     def clear_conversation_history(self):
-        """Clear the conversation memory"""
+        """Clear the conversation memory and retrieved context cache"""
         self.memory.clear()
         self.conversation_history.clear()
         if hasattr(self, 'conversation_memory') and self.conversation_memory:
             self.conversation_memory.clear()
-        self.logger.info("Conversation history cleared")
+        # Clear retrieved context cache
+        self._clear_context_cache()
+        self.logger.info("Conversation history and context cache cleared")
+    
+    def _update_context_cache(self, query: str, retrieved_chunks: List[Document]):
+        """Update the context cache with newly retrieved chunks"""
+        # Move current to previous
+        self.retrieved_context_cache['previous_query'] = self.retrieved_context_cache['current_query']
+        self.retrieved_context_cache['previous_chunks'] = self.retrieved_context_cache['current_chunks']
+        
+        # Store new current
+        self.retrieved_context_cache['current_query'] = query
+        self.retrieved_context_cache['current_chunks'] = [
+            {
+                'content': doc.page_content[:300],  # Store first 300 chars for reference
+                'section': doc.metadata.get('section_number', 'unknown'),
+                'category': doc.metadata.get('category', 'unknown')
+            }
+            for doc in retrieved_chunks
+        ]
+        self.retrieved_context_cache['timestamp'] = datetime.now()
+    
+    def _clear_context_cache(self):
+        """Clear the retrieved context cache"""
+        self.retrieved_context_cache = {
+            'current_query': None,
+            'current_chunks': [],
+            'previous_query': None,
+            'previous_chunks': [],
+            'timestamp': None
+        }
+    
+    def _is_query_related_to_cached_context(self, query: str) -> bool:
+        """Check if the new query is related to previously retrieved context"""
+        if not self.retrieved_context_cache['current_query']:
+            return False
+        
+        # Check if it's been too long (more than 5 minutes)
+        if self.retrieved_context_cache['timestamp']:
+            elapsed = (datetime.now() - self.retrieved_context_cache['timestamp']).seconds
+            if elapsed > 300:  # 5 minutes
+                return False
+        
+        # Simple keyword overlap check
+        current_query_words = set(self.retrieved_context_cache['current_query'].lower().split())
+        new_query_words = set(query.lower().split())
+        
+        # Remove common words
+        common_words = {'the', 'a', 'an', 'is', 'are', 'what', 'how', 'when', 'where', 'why', 'who', 'about', 'can', 'do', 'does'}
+        current_query_words -= common_words
+        new_query_words -= common_words
+        
+        # Check overlap
+        if len(current_query_words) > 0:
+            overlap = len(current_query_words.intersection(new_query_words))
+            overlap_ratio = overlap / len(current_query_words)
+            return overlap_ratio > 0.3  # 30% keyword overlap
+        
+        return False
+    
+    def _get_context_cache_prompt_addition(self) -> str:
+        """Generate a prompt addition to clarify context boundaries"""
+        if not self.retrieved_context_cache['current_query'] or not self.retrieved_context_cache['current_chunks']:
+            return ""
+        
+        sections = set([chunk['section'] for chunk in self.retrieved_context_cache['current_chunks']])
+        categories = set([chunk['category'] for chunk in self.retrieved_context_cache['current_chunks']])
+        
+        return f"\n\nNOTE: The handbook information above is specifically retrieved for THIS question. It's from sections: {', '.join(sections)} covering {', '.join(categories)}. Don't confuse this with information from previous questions."
+    
+    def _are_chunks_relevant_to_query(self, query: str, chunks: List[Document], threshold: float = 0.10) -> bool:
+        """
+        Check if retrieved chunks are actually relevant to the query
+        Returns True if chunks seem relevant, False if they should be discarded
+        Threshold lowered to 0.10 (10%) to catch more relevant matches
+        """
+        if not chunks:
+            return False
+        
+        # Extract query keywords (remove common words)
+        query_lower = query.lower()
+        common_words = {'the', 'a', 'an', 'is', 'are', 'what', 'how', 'when', 'where', 'why', 'who', 
+                       'about', 'can', 'do', 'does', 'will', 'would', 'should', 'could', 'my', 'me',
+                       'i', 'you', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with'}
+        
+        query_words = set([w for w in query_lower.split() if w not in common_words and len(w) > 2])
+        
+        if not query_words:
+            return True  # Can't determine, assume relevant
+        
+        # Check keyword overlap in chunks
+        total_relevance = 0
+        for chunk in chunks[:5]:  # Check top 5 chunks
+            chunk_content = chunk.page_content.lower()
+            chunk_words = set(chunk_content.split())
+            
+            # Calculate overlap
+            overlap = len(query_words.intersection(chunk_words))
+            relevance_score = overlap / len(query_words) if query_words else 0
+            total_relevance += relevance_score
+        
+        # Average relevance across chunks
+        avg_relevance = total_relevance / min(len(chunks), 5)
+        
+        self.logger.info(f"Chunk relevance score: {avg_relevance:.2f} (threshold: {threshold})")
+        
+        return avg_relevance >= threshold
+    
+    def _ensure_proper_formatting(self, text: str) -> str:
+        """
+        Ensure the response has proper formatting with line breaks
+        Post-process to add spacing if the LLM didn't include it
+        """
+        if not text:
+            return text
+        
+        # If text already has good formatting, return as is
+        if '\n\n' in text:
+            return text
+        
+        # Otherwise, add line breaks at sentence boundaries for better readability
+        import re
+        
+        # Add double line break after sentences that end paragraphs (. ! ?)
+        # But not for abbreviations like "Dr." or "Inc."
+        text = re.sub(r'([.!?])\s+([A-Z])', r'\1\n\n\2', text)
+        
+        # Add line break before bullet points if they exist
+        text = re.sub(r'([.!?])\s*([•\-\*])', r'\1\n\n\2', text)
+        
+        # Add spacing around numbered lists
+        text = re.sub(r'([.!?])\s*(\d+\.)', r'\1\n\n\2', text)
+        
+        # Add spacing after colons that introduce lists
+        text = re.sub(r':\s*([•\-\*\d])', r':\n\2', text)
+        
+        return text
+    
     
     def _add_to_conversation_history(self, question: str, answer: str):
         """Add Q&A to conversation history for follow-up detection"""
@@ -810,7 +1170,7 @@ Bulldog Buddy's Conversational Answer:""",
         """Handle grading system queries with enhanced search"""
         try:
             # Use keyword search to find the correct grading system documents
-            keywords = ['grading', 'grade', '4.0', 'excellent', 'gpa', 'marks', 'scale']
+            keywords = ['grading', 'grade', '4.0', 'excellent', 'gpa', 'marks', 'scale', 'incomplete', 'inc']
             docs = self._keyword_search_fallback(question, keywords, k=5)
             
             if not docs:
@@ -823,17 +1183,51 @@ Bulldog Buddy's Conversational Answer:""",
             # Create context from the found documents
             context = "\n\n".join([doc.page_content for doc in docs])
             
-            # Create a grading-specific prompt
-            grading_prompt = f"""Use the following pieces of context to answer the question about the grading system. Be specific and accurate.
+            # Get user context for personalization
+            user_context = ""
+            if self.context_manager and self.current_user_id:
+                user_context = self.context_manager.build_context_prompt(self.current_user_id)
+            
+            # Use smart greeting (not every time!)
+            greeting = self.get_context_aware_greeting(force_name=False)
+            
+            # Create a grading-specific prompt with personalization
+            grading_prompt = f"""You are Bulldog Buddy, a friendly assistant at National University Philippines (NU Philippines)! 🐶
 
-Context: {context}
+IMPORTANT: All grading information and policies you discuss are specifically for National University Philippines (NU Philippines), a private university in the Philippines.
 
-Question: {question}
+{user_context}
 
-Helpful Answer:"""
+Use the following context about the National University Philippines grading system to answer the question accurately and helpfully.
+
+National University Philippines Grading System Context:
+{context}
+
+Student's Question: {question}
+
+Instructions:
+- Start with: "{greeting}" (use exactly as provided - don't add the user's name again)
+- Be specific and accurate about National University Philippines grading policies
+- Use a supportive and encouraging tone
+- If discussing incomplete grades or grade changes, explain the NU Philippines process clearly
+- Include relevant policy details from the context specific to NU Philippines
+- End with encouragement or offer to help with follow-up questions
+- Keep response conversational and helpful
+
+FORMATTING RULES (IMPORTANT):
+- Use proper line breaks between paragraphs (add blank lines)
+- For grade scales, use bullet points or tables with proper spacing
+- Add spacing after sentences for readability
+- Structure your response with clear paragraphs
+- Don't make the text too compact - add breathing room
+
+Bulldog Buddy's Response:"""
             
             # Get response from LLM
             response = self.llm(grading_prompt)
+            
+            # Ensure proper formatting
+            response = self._ensure_proper_formatting(response)
             
             # Calculate confidence based on document relevance
             confidence = min(0.9, len(docs) * 0.15)
@@ -889,24 +1283,47 @@ Helpful Answer:"""
     def _handle_general_query(self, question: str) -> Dict[str, Any]:
         """Handle general knowledge questions without forcing handbook context"""
         try:
+            # Get user context for personalization
+            user_context = ""
+            if self.context_manager and self.current_user_id:
+                user_context = self.context_manager.build_context_prompt(self.current_user_id)
+            
+            # Use smart greeting system
+            greeting = self.get_context_aware_greeting(force_name=False)
+            
             # Create a general prompt that doesn't force handbook usage
-            general_prompt = f"""You are Bulldog Buddy, a friendly and knowledgeable Smart Campus Assistant! 
+            general_prompt = f"""You are Bulldog Buddy, a friendly and knowledgeable Smart Campus Assistant at National University Philippines (NU Philippines)! 
+
+{user_context}
 
 Question: {question}
 
 Instructions:
+- Start naturally with: "{greeting}" (use exactly as provided - don't add the user's name again)
 - Answer this question using your general knowledge
+- While you serve National University Philippines students, answer this general knowledge question without forcing NU Philippines context unless it's specifically requested
 - Be enthusiastic and supportive with a bulldog personality  
-- Use "Woof!" occasionally but naturally
+- Use "Woof!" occasionally but naturally (not in every response)
 - Provide accurate, helpful, and educational answers
-- Use emojis appropriately (🐶, 🐾, 📚, 🧠, 💡)
+- Use emojis appropriately (🐶, 🐾, 📚, 🧠, 💡) but sparingly
 - Keep responses informative yet friendly
 - If you don't know something, be honest about it
+- Be conversational without being repetitive
+
+FORMATTING RULES (IMPORTANT):
+- Use proper line breaks between paragraphs (add blank lines)
+- For lists, use bullet points with proper spacing
+- Add spacing after sentences for readability
+- Structure your response with clear paragraphs
+- Don't make the text too compact - add breathing room
 
 Bulldog Buddy's Answer:"""
 
             # Get response from LLM without forcing handbook context
             response = self.llm.invoke(general_prompt)
+            
+            # Ensure proper formatting
+            response = self._ensure_proper_formatting(response)
             
             final_result = {
                 "answer": response,
@@ -934,8 +1351,20 @@ Bulldog Buddy's Answer:"""
             # Get recent conversation context
             recent_context = self._get_recent_conversation_context(max_exchanges=2)
             
-            # Create conversational general prompt
-            conversational_prompt = f"""You are Bulldog Buddy, a friendly and knowledgeable Smart Campus Assistant! 
+            # Get user context for personalization
+            user_context = ""
+            user_name = self.get_user_name_for_prompt()
+            
+            if self.context_manager and self.current_user_id:
+                user_context = self.context_manager.build_context_prompt(self.current_user_id)
+            
+            # For follow-ups, rarely use name (natural conversation flow)
+            greeting = self.get_context_aware_greeting(force_name=False)
+            
+            # Create conversational general prompt with personalization
+            conversational_prompt = f"""You are Bulldog Buddy, a friendly and knowledgeable Smart Campus Assistant at National University Philippines (NU Philippines)! 
+
+{user_context}
 
 Recent conversation context:
 {recent_context}
@@ -943,19 +1372,34 @@ Recent conversation context:
 Current Question: {standalone_question}
 
 Instructions:
+- Start with: "{greeting}" (use exactly as provided - don't add the user's name again)
 - This is a follow-up question in our ongoing conversation
+- You know the user's name is {user_name if user_name else 'not provided yet'}
+- Use their name ONLY when it's natural and contextually appropriate (rarely in follow-ups)
 - Use your general knowledge to answer, referencing our previous discussion naturally
+- While you serve National University Philippines students, answer general knowledge questions without forcing NU Philippines context unless specifically requested
 - Be enthusiastic and supportive with a bulldog personality  
-- Use "Woof!" occasionally but naturally
+- Use "Woof!" very occasionally and naturally (not in most responses)
 - Provide accurate, helpful, and educational answers that flow from our conversation
-- Use emojis appropriately (🐶, 🐾, 📚, 🧠, 💡)
+- Use emojis sparingly (🐶, 🐾, 📚, 🧠, 💡)
 - Keep responses informative yet friendly and conversational
 - Reference what we were discussing before when relevant
+- Avoid repetitive patterns and greetings
+
+FORMATTING RULES (IMPORTANT):
+- Use proper line breaks between paragraphs (add blank lines)
+- For lists, use bullet points with proper spacing
+- Add spacing after sentences for readability
+- Structure your response with clear paragraphs
+- Don't make the text too compact - add breathing room
 
 Bulldog Buddy's Conversational Answer:"""
 
             # Get response from LLM with conversation context
             response = self.llm.invoke(conversational_prompt)
+            
+            # Ensure proper formatting
+            response = self._ensure_proper_formatting(response)
             
             final_result = {
                 "answer": response,

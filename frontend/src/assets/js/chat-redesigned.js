@@ -665,7 +665,7 @@ function showWelcomeMessage() {
     const userName = currentUser.first_name || currentUser.username || 'there';
     const welcomeText = `Welcome, ${userName}! I'm Bulldog Buddy, your Smart AI Assistant. I'm here to help with university questions and general knowledge. How can I assist you today?`;
     
-    addMessageToUI('assistant', welcomeText, new Date().toISOString(), 1.0, []);
+    addMessageToUI('assistant', welcomeText, new Date().toISOString(), 1.0, [], true);
 }
 
 async function sendMessage() {
@@ -743,7 +743,8 @@ async function sendMessage() {
                 data.response,
                 new Date().toISOString(),
                 data.confidence || 0,
-                data.sources || []
+                data.sources || [],
+                true // Enable typing effect for new messages
             );
             
             // Update the current conversation in the local array
@@ -768,7 +769,7 @@ async function sendMessage() {
     scrollToBottom();
 }
 
-function addMessageToUI(role, content, timestamp, confidence = 0, sources = []) {
+function addMessageToUI(role, content, timestamp, confidence = 0, sources = [], useTypingEffect = false) {
     const wrapper = document.getElementById('messagesWrapper');
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
@@ -805,7 +806,81 @@ function addMessageToUI(role, content, timestamp, confidence = 0, sources = []) 
     `;
     
     wrapper.appendChild(messageDiv);
-    scrollToBottom();
+    
+    // Apply typing effect ONLY for NEW assistant messages (not on reload)
+    if (!isUser && useTypingEffect) {
+        const bubble = messageDiv.querySelector('.message-bubble');
+        typeMessage(bubble, content);
+    } else {
+        scrollToBottom();
+    }
+}
+
+function typeMessage(element, content) {
+    // Format the content first (convert to HTML with formatting)
+    const formattedHTML = formatMessage(content);
+    
+    // Set up the element with full HTML but hidden
+    element.innerHTML = formattedHTML;
+    
+    // Get all text nodes
+    const textNodes = getTextNodes(element);
+    
+    // Store original text content for each node
+    const originalTexts = textNodes.map(node => node.textContent);
+    
+    // Clear all text nodes
+    textNodes.forEach(node => node.textContent = '');
+    
+    let nodeIndex = 0;
+    let charIndex = 0;
+    const speed = 5; // milliseconds per character (faster: was 15ms, now 5ms)
+    
+    function typeNextChar() {
+        if (nodeIndex >= textNodes.length) {
+            // Typing complete
+            scrollToBottom();
+            return;
+        }
+        
+        const currentNode = textNodes[nodeIndex];
+        const fullText = originalTexts[nodeIndex];
+        
+        if (charIndex < fullText.length) {
+            // Add next character
+            currentNode.textContent = fullText.substring(0, charIndex + 1);
+            charIndex++;
+            scrollToBottom();
+            setTimeout(typeNextChar, speed);
+        } else {
+            // Move to next text node
+            nodeIndex++;
+            charIndex = 0;
+            typeNextChar(); // Continue immediately to next node
+        }
+    }
+    
+    // Start typing
+    typeNextChar();
+}
+
+function getTextNodes(element) {
+    // Get all text nodes from an element recursively
+    const textNodes = [];
+    const walker = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT,
+        null,
+        false
+    );
+    
+    let node;
+    while (node = walker.nextNode()) {
+        // Include all text nodes (even whitespace ones for formatting)
+        textNodes.push(node);
+    }
+    
+    return textNodes;
 }
 
 function showTypingIndicator() {

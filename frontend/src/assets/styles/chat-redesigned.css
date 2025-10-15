@@ -779,6 +779,22 @@ body {
     transition: box-shadow var(--transition-fast);
 }
 
+/* Proper spacing for paragraphs within message bubbles */
+.message-bubble p {
+    margin: 0 0 12px 0;
+}
+
+.message-bubble p:last-child {
+    margin-bottom: 0;
+}
+
+/* Ensure line breaks are visible */
+.message-bubble br {
+    display: block;
+    content: "";
+    margin: 6px 0;
+}
+
 .message-bubble:hover {
     box-shadow: var(--shadow-md);
 }
