@@ -87,6 +87,15 @@ async def startup_event():
         # RAG System (default model)
         handbook_path = project_root / "data" / "student-handbook-structured.csv"
         rag_system = EnhancedRAGSystem(str(handbook_path), model_name="gemma3:latest")
+        
+        # CRITICAL: Initialize the database during startup to avoid race conditions
+        # This ensures the vectorstore is ready BEFORE any user requests come in
+        logger.info("🔧 Initializing RAG database (this may take a moment)...")
+        if rag_system.initialize_database():
+            logger.info("✅ RAG database initialized successfully")
+        else:
+            logger.error("❌ RAG database initialization failed")
+        
         rag_systems["gemma3:latest"] = rag_system
         logger.info("✅ RAG System initialized")
     except Exception as e:
@@ -212,19 +221,21 @@ async def chat(chat_request: ChatMessage):
                 chat_request.user_id,
                 title="New Conversation"
             )
+            logger.info(f"🆕 Created new session for user {chat_request.user_id}: {session_id}")
         
         # Set RAG mode
         current_rag = rag_systems.get(chat_request.model, rag_system)
         if hasattr(current_rag, 'set_university_mode'):
             current_rag.set_university_mode(chat_request.mode == "university")
         
+        # CRITICAL: Set session BEFORE user context to ensure clean state
+        # This prevents cross-user conversation contamination
+        if hasattr(current_rag, 'set_session') and session_id:
+            current_rag.set_session(session_id)
+        
         # Set user context if available
         if hasattr(current_rag, 'set_user_context'):
             current_rag.set_user_context(chat_request.user_id)
-        
-        # Set session (this will clear cache if session changed)
-        if hasattr(current_rag, 'set_session') and session_id:
-            current_rag.set_session(session_id)
         
         # Save user message
         if conversation_manager and session_id:
@@ -436,7 +447,17 @@ async def select_model(request: ModelSelect):
         if model_name not in rag_systems:
             handbook_path = project_root / "data" / "student-handbook-structured.csv"
             logger.info(f"📦 Initializing new RAG system for {model_name}")
-            rag_systems[model_name] = EnhancedRAGSystem(str(handbook_path), model_name=model_name)
+            new_rag = EnhancedRAGSystem(str(handbook_path), model_name=model_name)
+            
+            # CRITICAL: Initialize the database for the new model
+            logger.info(f"🔧 Initializing database for {model_name}...")
+            if new_rag.initialize_database():
+                logger.info(f"✅ Database initialized for {model_name}")
+            else:
+                logger.error(f"❌ Database initialization failed for {model_name}")
+                raise HTTPException(status_code=500, detail=f"Failed to initialize model {model_name}")
+            
+            rag_systems[model_name] = new_rag
         
         rag_system = rag_systems[model_name]
         logger.info(f"✅ Switched to model: {model_name}")

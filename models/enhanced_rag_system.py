@@ -6,6 +6,7 @@ from datetime import datetime
 import validators
 import re
 import time
+import threading
 
 import pandas as pd
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -86,6 +87,9 @@ class EnhancedRAGSystem:
         self.conversational_chain = None
         self.is_initialized = False
         
+        # Thread-safety lock for initialization
+        self._init_lock = threading.Lock()
+        
         # Web scraping components
         self.web_scraper = WebContentScraper()
         self.web_vectorstore = None  # Temporary store for web content
@@ -110,8 +114,8 @@ class EnhancedRAGSystem:
             'timestamp': None
         }
         
-        # Initialize embeddings
-        self.embeddings = OllamaEmbeddings(model="embeddinggemma:latest")
+        # Initialize embeddings - using nomic-embed-text for better RAG performance
+        self.embeddings = OllamaEmbeddings(model="nomic-embed-text")
         
         # Initialize LLM with selected model
         model_config = self.AVAILABLE_MODELS[model_name]
@@ -144,51 +148,64 @@ class EnhancedRAGSystem:
         self.conversation_history = []
         
     def initialize_database(self, force_rebuild: bool = False):
-        """Initialize the enhanced vector database with LangChain"""
-        try:
-            # Check if database already exists
-            if os.path.exists(self.db_path) and not force_rebuild:
-                try:
-                    # Load existing vectorstore
-                    self.vectorstore = Chroma(
-                        persist_directory=self.db_path,
-                        embedding_function=self.embeddings
-                    )
-                    
-                    # Check if it has content
-                    collection = self.vectorstore._collection
-                    if collection.count() > 0:
-                        self.logger.info(f"Loaded existing database with {collection.count()} documents")
-                        self._initialize_chains()
-                        self.is_initialized = True
-                        return True
-                except Exception as e:
-                    self.logger.warning(f"Failed to load existing database: {e}")
+        """Initialize the enhanced vector database with LangChain - Thread-safe"""
+        # Thread-safety: Use lock to prevent race conditions with concurrent initializations
+        with self._init_lock:
+            # Double-check if already initialized (another thread might have completed it)
+            if self.is_initialized and not force_rebuild:
+                self.logger.info("Database already initialized")
+                return True
             
-            self.logger.info("Creating new enhanced RAG database...")
-            
-            # Process CSV directly (our current format)
-            documents = self._process_csv_content()
-            
-            # Create vectorstore
-            self.vectorstore = Chroma.from_documents(
-                documents=documents,
-                embedding=self.embeddings,
-                persist_directory=self.db_path
-            )
-            
-            # Note: persist() is automatic in newer versions of Chroma
-            
-            # Initialize QA chains
-            self._initialize_chains()
-            
-            self.is_initialized = True
-            self.logger.info(f"Enhanced RAG database initialized with {len(documents)} documents")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to initialize enhanced database: {e}")
-            return False
+            try:
+                # Check if database already exists
+                if os.path.exists(self.db_path) and not force_rebuild:
+                    try:
+                        # Load existing vectorstore
+                        self.vectorstore = Chroma(
+                            persist_directory=self.db_path,
+                            embedding_function=self.embeddings
+                        )
+                        
+                        # Check if it has content
+                        collection = self.vectorstore._collection
+                        if collection.count() > 0:
+                            self.logger.info(f"Loaded existing database with {collection.count()} documents")
+                            self._initialize_chains()
+                            self.is_initialized = True
+                            return True
+                    except Exception as e:
+                        self.logger.warning(f"Failed to load existing database: {e}")
+                
+                self.logger.info("Creating new enhanced RAG database...")
+                
+                # Process CSV directly (our current format)
+                documents = self._process_csv_content()
+                
+                if not documents:
+                    self.logger.error("No documents processed from handbook - initialization failed")
+                    return False
+                
+                # Create vectorstore
+                self.vectorstore = Chroma.from_documents(
+                    documents=documents,
+                    embedding=self.embeddings,
+                    persist_directory=self.db_path
+                )
+                
+                # Note: persist() is automatic in newer versions of Chroma
+                
+                # Initialize QA chains
+                self._initialize_chains()
+                
+                self.is_initialized = True
+                self.logger.info(f"Enhanced RAG database initialized with {len(documents)} documents")
+                return True
+                
+            except Exception as e:
+                self.logger.error(f"Failed to initialize enhanced database: {e}")
+                import traceback
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
+                return False
     
     def _process_csv_content(self) -> List[Document]:
         """
@@ -364,7 +381,15 @@ class EnhancedRAGSystem:
         """Initialize the QA and conversational chains with enhanced memory"""
         # Custom prompt template for better responses with formatting instructions
         custom_prompt = PromptTemplate(
-            template="""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant with access to the official National University Philippines (NU Philippines) Student Handbook.
+            template="""You are Bulldog Buddy, an enthusiastic and loyal Smart Campus Assistant with a BULLDOG PERSONALITY! You have access to the official National University Philippines (NU Philippines) Student Handbook.
+
+PERSONALITY TRAITS (VERY IMPORTANT):
+- Loyal and protective like a bulldog - you want students to succeed!
+- Enthusiastic and energetic - use "Woof!" frequently (start of responses and when excited)
+- Friendly and approachable - make students feel supported
+- Confident and authoritative about handbook information
+- Use phrases like "Let me tell you...", "Here's the deal...", "You also need to...", "But it doesn't stop there!"
+- Add encouraging comments like "You've got this!", "That's a great accomplishment!", "I'm here to help you succeed!"
 
 IMPORTANT: All information and policies you discuss are specifically for National University Philippines (NU Philippines), a private university in the Philippines.
 
@@ -374,28 +399,52 @@ The following information is from the official National University Philippines h
 
 Student Question: {question}
 
-Instructions:
-- Answer based on the official National University Philippines handbook information provided above
-- Be confident and authoritative when citing handbook policies for NU Philippines
-- Be enthusiastic and supportive with a bulldog personality
-- Use "Woof!" occasionally but naturally (not in every response)
-- Provide accurate and concise answers specific to National University Philippines
-- When the handbook information is relevant, present it as official NU Philippines university policy
-- If the context doesn't contain relevant information, be honest about it
-- Use emojis appropriately but sparingly (🐶, 🐾, 📚, 🏫)
-- Keep responses helpful and student-focused
-- Avoid repetitive greetings or phrases
+RESPONSE FORMAT:
+1. START with "Woof! [enthusiastic acknowledgment]" 
+2. Give a brief intro about what you'll explain
+3. Cite the section: "According to Section X.X of our university handbook..."
+4. Use "But it doesn't stop there!" or "Here's the deal..." to transition to lists
+5. List ALL requirements with proper spacing
+6. END with encouragement + offer to help further + 🐾 emoji
 
-FORMATTING RULES (IMPORTANT):
+BULLDOG EXPRESSIONS TO USE:
+- "Woof!" (frequently!)
+- "Let me tell you..."
+- "Here's the deal..."
+- "But it doesn't stop there!"
+- "You've got this!"
+- "That's a fantastic accomplishment!"
+- "I'm here to help you every step of the way!"
+- "Don't worry, I've got your back!"
+- "Let's make this happen!"
+
+FORMATTING RULES:
 - Use proper line breaks between paragraphs (add blank lines)
-- For lists, use bullet points with proper spacing
+- Use bullet points (*) with proper spacing for lists
 - Add spacing after sentences for readability
-- Structure your response with clear paragraphs
-- Don't make the text too compact - add breathing room
 - **BOLD important terms**: grades (GPA, GWA), requirements, deadlines, amounts, policy names, section numbers
-- Use **bold** for emphasis on critical information like: **minimum requirements**, **deadlines**, **fees**, **grade thresholds**
+- Use emojis naturally (🐶, 🐾, 📚, 🏫) throughout the response
 
-Bulldog Buddy's Answer:""",
+Example response:
+"Woof! That's a fantastic question, [Name]! Let me tell you exactly what's needed to make the Dean's Honors List at National University Philippines.
+
+According to Section 3.17 of our university handbook, to qualify, you need to achieve a Term General Weighted Average (GWA) of at least **3.25**.
+
+But it doesn't stop there! You also need to meet these requirements:
+
+* Carry a minimum academic load of **12 academic units** (unless there's a specific exception outlined in your program flowchart).
+* Receive a final grade of **2.5 or higher** in every course.
+* No F, R, or 0.00 grades are allowed in any course.
+* You absolutely cannot have dropped any courses (Dr) – officially or unofficially!
+* And, importantly, you can't have an incomplete (Inc) grade at the time you receive your honors certificate.
+
+Finally, you must not have been found guilty of cheating or academic dishonesty.
+
+It's a lot of work, but achieving Dean's Honors is a fantastic accomplishment! 🐾 Do you want me to pull up the full Section 3.17 for you? 📚
+
+Would you like me to explain anything in more detail, or perhaps we could discuss some strategies for achieving a high GPA? I'm here to help you succeed! 🏫"
+
+Now give your enthusiastic bulldog response:""",
             input_variables=["context", "question"]
         )
         
@@ -413,7 +462,13 @@ Bulldog Buddy's Answer:""",
         
         # Enhanced conversational prompt template for follow-up awareness with formatting
         conversational_prompt = PromptTemplate(
-            template="""You are Bulldog Buddy, a friendly and loyal Smart Campus Assistant with access to the National University Philippines (NU Philippines) Student Handbook. You're having an ongoing conversation with a student.
+            template="""You are Bulldog Buddy, a loyal and enthusiastic Smart Campus Assistant with a BULLDOG PERSONALITY! You're in an ongoing conversation with a student at National University Philippines (NU Philippines).
+
+BULLDOG PERSONALITY FOR FOLLOW-UPS:
+- Still enthusiastic but more direct (this is a follow-up)
+- Use "Woof!" occasionally (not every response, but when excited about helping)
+- Stay supportive and encouraging
+- Keep your bulldog energy - phrases like "Let me help you with that!", "Here's what you need to know!", "You've got this!"
 
 IMPORTANT: All information and policies you discuss are specifically for National University Philippines (NU Philippines), a private university in the Philippines.
 
@@ -425,16 +480,16 @@ Official National University Philippines Handbook Information:
 
 Current Question: {question}
 
-Instructions:
-- You are aware of the ongoing conversation context
-- Use the National University Philippines handbook information when relevant to answer university policy questions
-- Reference previous topics naturally when relevant
-- Be enthusiastic and supportive with a bulldog personality  
-- Use "Woof!" very occasionally and naturally (not in most responses)
-- Provide accurate and conversational answers specific to NU Philippines that flow naturally
-- Use emojis sparingly (🐶, 🐾, 📚, 🏫)
-- Keep responses helpful and conversational without being repetitive
-- Avoid overusing greetings or the student's name in follow-up responses
+Instructions for FOLLOW-UP responses:
+- This is a FOLLOW-UP question - answer directly without re-introducing yourself
+- Use bulldog phrases: "Let me help you with that!", "Here's the deal...", "Here's what you need to know!"
+- Use the National University Philippines handbook information when relevant
+- Reference previous topics ONLY if directly relevant to this specific question
+- Be enthusiastic and supportive like a loyal bulldog companion
+- Use "Woof!" when appropriate (when excited or starting important info)
+- Provide accurate and conversational answers specific to NU Philippines
+- Use emojis naturally (🐶, 🐾, 📚, 🏫) when they fit
+- For simple factual follow-ups, give direct answers with bulldog confidence
 - Present handbook information as official National University Philippines policy when applicable
 
 FORMATTING RULES (IMPORTANT):
@@ -514,11 +569,22 @@ Bulldog Buddy's Conversational Answer:""",
         self.logger.info(f"Set user context for user ID: {user_id}")
     
     def set_session(self, session_id: str):
-        """Set current conversation session and clear cache if session changes"""
+        """Set current conversation session and clear ALL state if session changes"""
         if session_id != self.current_session_id:
-            self.logger.info(f"🔄 Session changed from {self.current_session_id} to {session_id} - clearing context cache")
+            self.logger.info(f"🔄 Session changed from {self.current_session_id} to {session_id} - clearing ALL conversation state")
             self.current_session_id = session_id
+            
+            # Clear context cache (retrieved chunks)
             self._clear_context_cache()
+            
+            # CRITICAL FIX: Clear conversation history to prevent cross-user contamination
+            self.conversation_history = []
+            
+            # Clear LangChain memory
+            if hasattr(self, 'memory') and self.memory:
+                self.memory.clear()
+            
+            self.logger.info(f"✅ Session state cleared for new session: {session_id}")
         else:
             self.logger.debug(f"✅ Same session: {session_id}")
     
@@ -568,26 +634,21 @@ Bulldog Buddy's Conversational Answer:""",
         Args:
             force_name: If True, always include name if available (for specific query types)
         Returns:
-            Appropriate greeting string
+            Appropriate greeting string - mostly empty for natural conversation flow
         """
+        # For follow-up questions, no greeting needed (natural conversation)
+        if len(self.conversation_history) > 0:
+            return ""
+        
+        # For first message only, optionally use a minimal greeting
         user_name = self.get_user_name_for_prompt()
         
-        # If we should use the name (or forced), and name is available
-        if user_name and (force_name or self.should_use_name_in_greeting()):
-            return f"Hey {user_name}! "
+        # If we should use the name (or forced), and name is available - ONLY for first message
+        if user_name and force_name:
+            return f"Hi {user_name}! "
         
-        # Alternate greetings without name repetition
-        alternate_greetings = [
-            "Woof! ",
-            "Hey there! ",
-            "",  # No greeting, direct answer
-            "Sure! ",
-            "Absolutely! "
-        ]
-        
-        # Use conversation count to cycle through greetings
-        greeting_index = len(self.conversation_history) % len(alternate_greetings)
-        return alternate_greetings[greeting_index]
+        # Default: no greeting, just answer directly
+        return ""
     
     def add_to_history(self, user_message: str, assistant_response: str):
         """Add exchange to conversation history and save to database"""
@@ -694,21 +755,9 @@ Bulldog Buddy's Conversational Answer:""",
                         # Extract source information
                         source_docs = result.get("source_documents", [])
                         
-                        # CHECK RELEVANCE: If retrieved chunks aren't relevant to the follow-up, clear cache and retrieve fresh
-                        if not self._are_chunks_relevant_to_query(standalone_question, source_docs, threshold=0.08):
-                            self.logger.warning(f"Retrieved chunks not relevant to follow-up question. Clearing cache and re-retrieving...")
-                            self._clear_context_cache()
-                            
-                            # Try again with fresh retrieval (using regular QA chain)
-                            result = self.qa_chain({
-                                "query": standalone_question
-                            })
-                            source_docs = result.get("source_documents", [])
-                            
-                            # If still not relevant, switch to general mode
-                            if not self._are_chunks_relevant_to_query(standalone_question, source_docs, threshold=0.08):
-                                self.logger.info("Chunks still not relevant - switching to general knowledge mode")
-                                return self._handle_conversational_general_query(standalone_question, question)
+                        # REMOVED RELEVANCE CHECK: Trust the vector database
+                        # ChromaDB's semantic embeddings already filter for relevance
+                        self.logger.info(f"Retrieved {len(source_docs)} documents for follow-up question")
                         
                         # Update context cache with retrieved chunks
                         self._update_context_cache(standalone_question, source_docs)
@@ -763,11 +812,10 @@ Bulldog Buddy's Conversational Answer:""",
                 
                 source_docs = result.get("source_documents", [])
                 
-                # Check if retrieved chunks are relevant, if not switch to general mode
-                if not self._are_chunks_relevant_to_query(clean_question, source_docs, threshold=0.08):
-                    self.logger.info("Retrieved chunks not relevant - switching to general knowledge")
-                    self._clear_context_cache()
-                    return self._handle_general_query(clean_question)
+                # REMOVED RELEVANCE CHECK: Trust vector database semantic search completely
+                # The embedding model (embeddinggemma:latest) is designed for semantic matching
+                # If ChromaDB returns chunks from our curated handbook, they ARE relevant
+                self.logger.info(f"Retrieved {len(source_docs)} documents from handbook")
                 
                 # Update context cache with retrieved chunks
                 self._update_context_cache(clean_question, source_docs)
@@ -948,16 +996,28 @@ Bulldog Buddy's Conversational Answer:""",
         
         return f"\n\nNOTE: The handbook information above is specifically retrieved for THIS question. It's from sections: {', '.join(sections)} covering {', '.join(categories)}. Don't confuse this with information from previous questions."
     
-    def _are_chunks_relevant_to_query(self, query: str, chunks: List[Document], threshold: float = 0.08) -> bool:
+    def _are_chunks_relevant_to_query(self, query: str, chunks: List[Document], threshold: float = 0.04) -> bool:
         """
         Check if retrieved chunks are actually relevant to the query
         Returns True if chunks seem relevant, False if they should be discarded
-        Threshold lowered to 0.08 (8%) for better recall - we'd rather show somewhat relevant info than none
+        
+        IMPORTANT: Vector search already filters for semantic similarity, so we should be 
+        more lenient here. We mainly want to catch completely irrelevant results.
         """
         if not chunks:
             return False
         
-        # Extract query keywords (remove common words)
+        # If we got chunks from vector search, they're likely relevant
+        # Only reject if they're obviously irrelevant
+        
+        # Strategy 1: Trust vector search for most queries - just check if we got results
+        if len(chunks) > 0:
+            # For university handbook queries, if vector DB returned results, trust it
+            # The semantic embedding model already did the heavy lifting
+            self.logger.info(f"✅ Vector search returned {len(chunks)} chunks - trusting semantic similarity")
+            return True
+        
+        # Strategy 2: Fallback keyword check (only if really needed)
         query_lower = query.lower()
         common_words = {'the', 'a', 'an', 'is', 'are', 'what', 'how', 'when', 'where', 'why', 'who', 
                        'about', 'can', 'do', 'does', 'will', 'would', 'should', 'could', 'my', 'me',
@@ -982,7 +1042,7 @@ Bulldog Buddy's Conversational Answer:""",
         # Average relevance across chunks
         avg_relevance = total_relevance / min(len(chunks), 5)
         
-        self.logger.info(f"Chunk relevance score: {avg_relevance:.2f} (threshold: {threshold})")
+        self.logger.info(f"Keyword overlap score: {avg_relevance:.2f} (threshold: {threshold})")
         
         return avg_relevance >= threshold
     
@@ -1012,7 +1072,7 @@ Bulldog Buddy's Conversational Answer:""",
         text = re.sub(r'([.!?])\s*(\d+\.)', r'\1\n\n\2', text)
         
         # Add spacing after colons that introduce lists
-        text = re.sub(r':\s*([•\-\*\d])', r':\n\2', text)
+        text = re.sub(r':\s*([•\-\*\d])', r':\n\1', text)
         
         return text
     
@@ -1197,11 +1257,17 @@ Bulldog Buddy's Conversational Answer:""",
             if self.context_manager and self.current_user_id:
                 user_context = self.context_manager.build_context_prompt(self.current_user_id)
             
-            # Use smart greeting (not every time!)
-            greeting = self.get_context_aware_greeting(force_name=False)
+            # Determine if this is a follow-up question
+            is_followup = len(self.conversation_history) > 0
             
-            # Create a grading-specific prompt with personalization
-            grading_prompt = f"""You are Bulldog Buddy, a friendly assistant at National University Philippines (NU Philippines)! 🐶
+            # Create a grading-specific prompt with personalization and bulldog personality
+            grading_prompt = f"""You are Bulldog Buddy, an enthusiastic Smart Campus Assistant with a BULLDOG PERSONALITY at National University Philippines (NU Philippines).
+
+BULLDOG PERSONALITY:
+- Start with "Woof!" if it's the first question, or use enthusiastic phrases like "Let me break this down for you!" for follow-ups
+- Use phrases: "Here's the deal...", "Let me tell you...", "You've got this!", "Here's what you need to know!"
+- Be supportive and encouraging about understanding the grading system
+- Show confidence and authority about NU Philippines policies
 
 IMPORTANT: All grading information and policies you discuss are specifically for National University Philippines (NU Philippines), a private university in the Philippines.
 
@@ -1215,13 +1281,13 @@ National University Philippines Grading System Context:
 Student's Question: {question}
 
 Instructions:
-- Start with: "{greeting}" (use exactly as provided - don't add the user's name again)
+- {"Use bulldog phrases like 'Let me help you with that!' or 'Here's what you need to know!' - answer directly" if is_followup else "Start with 'Woof!' and enthusiastic acknowledgment"}
 - Be specific and accurate about National University Philippines grading policies
-- Use a supportive and encouraging tone
-- If discussing incomplete grades or grade changes, explain the NU Philippines process clearly
+- Use supportive and encouraging bulldog tone - make students feel confident about understanding grades
+- If discussing incomplete grades or grade changes, explain the NU Philippines process clearly with enthusiasm
 - Include relevant policy details from the context specific to NU Philippines
-- End with encouragement or offer to help with follow-up questions
-- Keep response conversational and helpful
+- Use bulldog expressions: "Here's the deal...", "You've got this!", "Let me break it down for you!"
+- Keep response helpful and encouraging
 
 FORMATTING RULES (IMPORTANT):
 - Use proper line breaks between paragraphs (add blank lines)
@@ -1299,27 +1365,31 @@ Bulldog Buddy's Response:"""
             if self.context_manager and self.current_user_id:
                 user_context = self.context_manager.build_context_prompt(self.current_user_id)
             
-            # Use smart greeting system
-            greeting = self.get_context_aware_greeting(force_name=False)
+            # Determine if this is a follow-up
+            is_followup = len(self.conversation_history) > 0
             
-            # Create a general prompt that doesn't force handbook usage
-            general_prompt = f"""You are Bulldog Buddy, a friendly and knowledgeable Smart Campus Assistant at National University Philippines (NU Philippines)! 
+            # Create a general prompt that doesn't force handbook usage but keeps bulldog personality
+            general_prompt = f"""You are Bulldog Buddy, an enthusiastic Smart Campus Assistant with a BULLDOG PERSONALITY at National University Philippines (NU Philippines).
+
+BULLDOG PERSONALITY:
+- {"Use phrases like 'Let me help you with that!', 'Here's what I know!', 'Great question!' for follow-ups" if is_followup else "Start with 'Woof!' and enthusiastic acknowledgment"}
+- Be enthusiastic and supportive like a loyal bulldog companion
+- Use bulldog expressions: "Let me tell you...", "Here's the deal...", "You've got this!"
+- Show personality - be friendly, encouraging, and confident
+- Use emojis naturally (🐶, 🐾, 📚, 🧠, 💡) throughout your response
 
 {user_context}
 
 Question: {question}
 
 Instructions:
-- Start naturally with: "{greeting}" (use exactly as provided - don't add the user's name again)
-- Answer this question using your general knowledge
+- Answer this question using your general knowledge with bulldog enthusiasm
 - While you serve National University Philippines students, answer this general knowledge question without forcing NU Philippines context unless it's specifically requested
-- Be enthusiastic and supportive with a bulldog personality  
-- Use "Woof!" occasionally but naturally (not in every response)
-- Provide accurate, helpful, and educational answers
-- Use emojis appropriately (🐶, 🐾, 📚, 🧠, 💡) but sparingly
-- Keep responses informative yet friendly
-- If you don't know something, be honest about it
-- Be conversational without being repetitive
+- Be enthusiastic and helpful like a loyal bulldog
+- Provide accurate, helpful, and educational answers with personality
+- Keep responses informative yet friendly and encouraging
+- If you don't know something, be honest but supportive about it
+- Show your bulldog charm and supportiveness
 
 FORMATTING RULES (IMPORTANT):
 - Use proper line breaks between paragraphs (add blank lines)
@@ -1371,11 +1441,8 @@ Bulldog Buddy's Answer:"""
             if self.context_manager and self.current_user_id:
                 user_context = self.context_manager.build_context_prompt(self.current_user_id)
             
-            # For follow-ups, rarely use name (natural conversation flow)
-            greeting = self.get_context_aware_greeting(force_name=False)
-            
             # Create conversational general prompt with personalization
-            conversational_prompt = f"""You are Bulldog Buddy, a friendly and knowledgeable Smart Campus Assistant at National University Philippines (NU Philippines)! 
+            conversational_prompt = f"""You are Bulldog Buddy, a Smart Campus Assistant at National University Philippines (NU Philippines).
 
 {user_context}
 
@@ -1384,20 +1451,21 @@ Recent conversation context:
 
 Current Question: {standalone_question}
 
-Instructions:
-- Start with: "{greeting}" (use exactly as provided - don't add the user's name again)
-- This is a follow-up question in our ongoing conversation
-- You know the user's name is {user_name if user_name else 'not provided yet'}
-- Use their name ONLY when it's natural and contextually appropriate (rarely in follow-ups)
-- Use your general knowledge to answer, referencing our previous discussion naturally
+Instructions for FOLLOW-UP responses:
+- This is a FOLLOW-UP question in an ongoing conversation
+- Answer directly and concisely without introducing yourself or using greetings
+- The user knows who you are - just answer the question
+- Check if previous context is actually relevant to THIS specific question
+- For simple follow-up questions (like "what about X?"), provide a direct, focused answer
+- Use your general knowledge to answer
 - While you serve National University Philippines students, answer general knowledge questions without forcing NU Philippines context unless specifically requested
-- Be enthusiastic and supportive with a bulldog personality  
-- Use "Woof!" very occasionally and naturally (not in most responses)
-- Provide accurate, helpful, and educational answers that flow from our conversation
-- Use emojis sparingly (🐶, 🐾, 📚, 🧠, 💡)
-- Keep responses informative yet friendly and conversational
-- Reference what we were discussing before when relevant
-- Avoid repetitive patterns and greetings
+- Be professional and helpful
+- Use "Woof!" very rarely (once per 10 responses at most)
+- Provide accurate, helpful, and educational answers that flow naturally
+- Use emojis sparingly (🐶, 🐾, 📚, 🧠, 💡) - NOT in every response
+- Keep responses informative yet concise
+- Reference previous discussion ONLY if directly relevant to this question
+- Avoid repetitive patterns, greetings, and unnecessary filler
 
 FORMATTING RULES (IMPORTANT):
 - Use proper line breaks between paragraphs (add blank lines)
