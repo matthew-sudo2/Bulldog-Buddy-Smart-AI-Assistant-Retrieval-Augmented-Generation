@@ -66,7 +66,7 @@
 
 ## Features
 
-- **Dual AI Models**: Choose between Matt 3 and Matt 3.2
+- **Dual AI Models**: Choose between Llama3:2 and Gemma2:1B
 - **RAG System**: Intelligent university handbook knowledge retrieval
 - **Conversation Memory**: Maintains context across 10 messages
 - **User Context**: Remembers user preferences and information
